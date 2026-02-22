@@ -1,6 +1,7 @@
 name: Slow End-to-End Tests
 permissions:
   contents: read
+  packages: read
 
 on:
   workflow_call:
@@ -9,6 +10,10 @@ on:
         required: false
         type: string
         default: '3.11.x'
+      ci-image:
+        required: false
+        type: string
+        default: ''
     secrets:
       LLM_MODEL:
         required: true
@@ -31,6 +36,7 @@ jobs:
   test-edge-centered-payload:
     name: Test Cognify - Edge Centered Payload
     runs-on: ubuntu-22.04
+    container: ${{ inputs.ci-image != '' && fromJSON(format('{{"image":"{0}","credentials":{{"username":"{1}","password":"{2}"}}}}', inputs.ci-image, github.actor, github.token)) || null }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -61,6 +67,7 @@ jobs:
   test-deletion-on-default-graph_with_legacy_data_1_default:
     name: Delete default graph with legacy data test 1 in Kuzu case
     runs-on: ubuntu-22.04
+    container: ${{ inputs.ci-image != '' && fromJSON(format('{{"image":"{0}","credentials":{{"username":"{1}","password":"{2}"}}}}', inputs.ci-image, github.actor, github.token)) || null }}
     steps:
       - name: Check out
         uses: actions/checkout@v6

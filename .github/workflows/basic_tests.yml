@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: '3.11.x'
+      ci-image:
+        required: false
+        type: string
+        default: ''
     secrets:
       LLM_PROVIDER:
         required: true
@@ -37,6 +41,7 @@ jobs:
   unit-tests:
     name: Run Unit Tests
     runs-on: ubuntu-22.04
+    container: ${{ inputs.ci-image != '' && fromJSON(format('{{"image":"{0}","credentials":{{"username":"{1}","password":"{2}"}}}}', inputs.ci-image, github.actor, github.token)) || null }}
     env:
       ENV: 'dev'
       LLM_PROVIDER: openai
@@ -68,6 +73,7 @@ jobs:
   simple-examples:
     name: Run Simple Examples
     runs-on: ubuntu-22.04
+    container: ${{ inputs.ci-image != '' && fromJSON(format('{{"image":"{0}","credentials":{{"username":"{1}","password":"{2}"}}}}', inputs.ci-image, github.actor, github.token)) || null }}
     env:
       ENV: 'dev'
       LLM_PROVIDER: openai
@@ -99,6 +105,7 @@ jobs:
   simple-examples-baml:
     name: Run Simple Examples BAML
     runs-on: ubuntu-22.04
+    container: ${{ inputs.ci-image != '' && fromJSON(format('{{"image":"{0}","credentials":{{"username":"{1}","password":"{2}"}}}}', inputs.ci-image, github.actor, github.token)) || null }}
     env:
       ENV: 'dev'
       STRUCTURED_OUTPUT_FRAMEWORK: "BAML"
