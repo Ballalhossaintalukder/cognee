@@ -1,4 +1,4 @@
-name: Slow Integration Tests
+name: Slow End-to-End Tests
 permissions:
   contents: read
 
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -72,7 +72,7 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
 
-      - name: Run deletion on custom graph
+      - name: Run deletion on default graph with legacy data (Kuzu)
         env:
           ENV: 'dev'
           LLM_MODEL: ${{ secrets.LLM_MODEL }}

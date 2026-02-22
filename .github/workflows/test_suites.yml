@@ -36,7 +36,7 @@ jobs:
     secrets: inherit
 
   slow-e2e-tests:
-    name: End-to-End Tests
+    name: Slow End-to-End Tests
     uses: ./.github/workflows/slow_e2e_tests.yml
     needs: [ e2e-tests ]
     secrets: inherit
@@ -169,7 +169,7 @@ jobs:
       docker-compose-test,
       docker-ci-test,
       integration-tests,
-      slow-e2e-tests
+      slow-e2e-tests,
     ]
     uses: ./.github/workflows/test_ollama.yml
     secrets: inherit
@@ -194,7 +194,7 @@ jobs:
       docker-compose-test,
       docker-ci-test,
       integration-tests,
-      slow-e2e-tests
+      slow-e2e-tests,
     ]
     runs-on: ubuntu-latest
     if: always()
@@ -215,7 +215,9 @@ jobs:
                 "${{ needs.llm-tests.result }}" == "success" &&
                 "${{ needs.docker-compose-test.result }}" == "success" &&
                 "${{ needs.docker-ci-test.result }}" == "success" &&
-                "${{ needs.ollama-tests.result }}" == "success" ]]; then
+                "${{ needs.ollama-tests.result }}" == "success" &&
+                "${{ needs.integration-tests.result }}" == "success" &&
+                "${{ needs.slow-e2e-tests.result }}" == "success" ]]; then
             echo "All test suites completed successfully!"
           else
             echo "One or more test suites failed."
@@ -246,7 +248,7 @@ jobs:
       - name: Cognee Setup
         uses: ./.github/actions/cognee_setup
         with:
-          python-version: ${{ inputs.python-version }}
+          python-version: '3.11.x'
           extra-dependencies: "scraping"
 
       - name: Run Integration Tests
