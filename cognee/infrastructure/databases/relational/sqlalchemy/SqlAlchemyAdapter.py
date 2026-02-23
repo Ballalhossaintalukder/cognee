@@ -77,6 +77,8 @@ class SQLAlchemyAdapter:
                 connect_args={**{"timeout": 30}, **final_connect_args},
             )
         else:
+            if pool_args is None:
+                pool_args = {}
             self.engine = create_async_engine(
                 connection_string,
                 **pool_args,
