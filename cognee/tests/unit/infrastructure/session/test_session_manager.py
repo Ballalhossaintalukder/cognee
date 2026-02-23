@@ -644,7 +644,9 @@ class TestSessionManager:
         mock_cache.create_qa_entry.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_generate_completion_with_session_feedback_score_normalization(self, sm, mock_cache):
+    async def test_generate_completion_with_session_feedback_score_normalization(
+        self, sm, mock_cache
+    ):
         """Feedback score is normalized to int 1-5 when persisting."""
         mock_cache.get_latest_qa_entries.return_value = [
             {"qa_id": "last-qa-norm", "question": "Q", "answer": "A", "time": "t"}
