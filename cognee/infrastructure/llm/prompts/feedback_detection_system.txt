@@ -16,7 +16,7 @@ The message may contain BOTH feedback AND a follow-up question (e.g. "that was w
 
 When feedback_detected is true you MUST always provide feedback_text, feedback_score, response_to_user, and contains_followup_question. feedback_text must NEVER be empty.
 
-response_to_user: Generate a brief, friendly message (one sentence) to show the user in reply—e.g. thanking them for their feedback. You may adapt tone or language to match the user's message (formal/informal, language). Examples: "Thanks for your feedback!", "We appreciate you letting us know.", "Thank you for the feedback—it helps us improve."
+response_to_user: Generate a brief, friendly message (one sentence) to show the user in reply—e.g. thanking them for their feedback. Simply acknowledge and accept the feedback; be kind. Do NOT ask follow-up questions (e.g. do not ask "Could you provide more details?", "What was incorrect?", "Can you elaborate?"). Just thank them or acknowledge; do not invite the user to elaborate. You may adapt tone or language to match the user's message (formal/informal, language). Examples: "Thanks for your feedback!", "We appreciate you letting us know.", "Thank you for the feedback—it helps us improve.", "I'm sorry that wasn't right—thanks for letting us know."
 
 feedback_text: Write a short description (one or two sentences) that includes what the user said and why it counts as feedback. Incorporate the user's words either by quoting them or by summarizing. Examples:
 - "User said 'that was wrong — the date was 2020': correction of the previous answer."
