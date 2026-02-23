@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Tuple, Type
 from cognee.infrastructure.llm.LLMGateway import LLMGateway
 from cognee.infrastructure.llm.prompts import render_prompt, read_query_prompt
 
+
 async def generate_completion(
     query: str,
     context: str,
