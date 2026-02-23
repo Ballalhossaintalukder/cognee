@@ -24,3 +24,7 @@ class FeedbackDetectionResult(BaseModel):
         default=None,
         description="When feedback_detected is True: required. Brief, friendly message to show the user (e.g. thanking them for feedback). One sentence; can adapt tone or language to the user's message.",
     )
+    contains_followup_question: bool = Field(
+        default=False,
+        description="True if the message contains both feedback and a new or follow-up question that should be answered (e.g. 'that was wrong, but what about X?'). Set to false when the message is only feedback with no question.",
+    )

@@ -221,7 +221,7 @@ class SessionManager:
                     score = int(round(min(5, max(1, s))))
                 feedback_text = (feedback_result.feedback_text or "").strip()
                 if not feedback_text:
-                    feedback_text = f"User message: {query.strip()[:500]}"
+                    feedback_text = f"User message: {query.strip()}"
                 await self.add_feedback(
                     user_id=str(user_id),
                     session_id=resolved_session_id,
@@ -235,8 +235,9 @@ class SessionManager:
                     e,
                     exc_info=False,
                 )
-            response = (feedback_result.response_to_user or "").strip()
-            return response if response else "Thanks for your feedback."
+            if not feedback_result.contains_followup_question:
+                response = (feedback_result.response_to_user or "").strip()
+                return response if response else "Thanks for your feedback."
 
         await self.add_qa(
             user_id=str(user_id),
@@ -245,6 +246,9 @@ class SessionManager:
             answer=str(completion),
             session_id=resolved_session_id,
         )
+        if feedback_detected and feedback_result.contains_followup_question:
+            thanks = (feedback_result.response_to_user or "").strip()
+            return f"{thanks}\n\n{completion}" if thanks else completion
         return completion
 
     @staticmethod
