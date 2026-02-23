@@ -1,9 +1,8 @@
 import asyncio
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Type
+from typing import Any, List, Optional, Tuple, Type
 
 from cognee.infrastructure.llm.LLMGateway import LLMGateway
 from cognee.infrastructure.llm.prompts import render_prompt, read_query_prompt
-
 
 async def generate_completion(
     query: str,
@@ -66,7 +65,7 @@ async def generate_session_completion_with_optional_summary(
     response_model: Type = str,
     summarize_context: bool = False,
     run_feedback_detection: bool = False,
-) -> Tuple[Any, str, Optional["FeedbackDetectionResult"]]:
+) -> Tuple[Any, str, Any]:
     """
     Run LLM completion (and optionally summarization) for the session-manager flow.
     Returns (completion, context_to_store, feedback_result).
