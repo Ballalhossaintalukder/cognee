@@ -1,9 +1,9 @@
 from sqlalchemy import URL
 from .sqlalchemy.SqlAlchemyAdapter import SQLAlchemyAdapter
-from functools import cache
+from functools import lru_cache
 
 
-@cache
+@lru_cache
 def create_relational_engine(
     db_path: str,
     db_name: str,
