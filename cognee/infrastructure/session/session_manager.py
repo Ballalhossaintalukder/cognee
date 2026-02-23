@@ -188,13 +188,13 @@ class SessionManager:
             )
             if isinstance(entries, list) and entries:
                 last_entry = entries[-1]
-                last_qa_id = (
-                    last_entry.get("qa_id")
-                    if isinstance(last_entry, dict)
-                    else None
-                )
+                last_qa_id = last_entry.get("qa_id") if isinstance(last_entry, dict) else None
 
-        completion, context_to_store, feedback_result = await generate_session_completion_with_optional_summary(
+        (
+            completion,
+            context_to_store,
+            feedback_result,
+        ) = await generate_session_completion_with_optional_summary(
             query=query,
             context=context,
             conversation_history=conversation_history,
