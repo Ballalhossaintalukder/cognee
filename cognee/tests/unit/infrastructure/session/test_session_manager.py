@@ -379,7 +379,7 @@ class TestSessionManager:
                         contains_followup_question=False,
                     ),
                 ),
-            ) as mock_generate,
+            ),
         ):
             mock_user = MagicMock()
             mock_user.id = "u1"
@@ -432,7 +432,7 @@ class TestSessionManager:
                         contains_followup_question=True,
                     ),
                 ),
-            ) as mock_generate,
+            ),
         ):
             mock_user = MagicMock()
             mock_user.id = "u1"
@@ -477,7 +477,7 @@ class TestSessionManager:
                 "cognee.infrastructure.session.session_manager.generate_session_completion_with_optional_summary",
                 new_callable=AsyncMock,
                 return_value=("Generated answer", "", None),
-            ) as mock_generate,
+            ),
         ):
             mock_user = MagicMock()
             mock_user.id = "u1"
@@ -524,7 +524,7 @@ class TestSessionManager:
                         contains_followup_question=False,
                     ),
                 ),
-            ) as mock_generate,
+            ),
         ):
             mock_user = MagicMock()
             mock_user.id = "u1"
@@ -574,7 +574,7 @@ class TestSessionManager:
                         contains_followup_question=False,
                     ),
                 ),
-            ) as mock_generate,
+            ),
         ):
             mock_user = MagicMock()
             mock_user.id = "u1"
@@ -622,7 +622,7 @@ class TestSessionManager:
                         contains_followup_question=False,
                     ),
                 ),
-            ) as mock_generate,
+            ),
         ):
             mock_user = MagicMock()
             mock_user.id = "u1"
@@ -670,7 +670,7 @@ class TestSessionManager:
                         contains_followup_question=False,
                     ),
                 ),
-            ) as mock_generate,
+            ),
         ):
             mock_user = MagicMock()
             mock_user.id = "u1"
