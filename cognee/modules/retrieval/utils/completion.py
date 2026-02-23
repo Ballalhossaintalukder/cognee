@@ -75,7 +75,6 @@ async def generate_session_completion_with_optional_summary(
     is the detection result, otherwise None.
     """
     from cognee.infrastructure.session.feedback_detection import detect_feedback
-    from cognee.infrastructure.session.feedback_models import FeedbackDetectionResult
 
     if summarize_context:
         if run_feedback_detection:
