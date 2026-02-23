@@ -44,6 +44,10 @@ SAMPLES = [
     ("Short reactive", "nope"),
     ("Short reactive", "yes"),
     ("Short reactive", "correct"),
+    # Feedback + follow-up question (hybrid)
+    ("Feedback + follow-up", "that was wrong, but what about the other approach?"),
+    ("Feedback + follow-up", "thanks! Can you also explain Y?"),
+    ("Feedback + follow-up", "5/5 — and what is the capital of France?"),
 ]
 
 
@@ -58,6 +62,7 @@ async def main():
         print(f"  Input: {msg!r}")
         print(
             f"  -> detected={result.feedback_detected}, "
+            f"contains_followup_question={result.contains_followup_question}, "
             f"score={result.feedback_score}, "
             f"text={result.feedback_text!r}"
         )
