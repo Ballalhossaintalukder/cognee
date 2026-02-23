@@ -467,7 +467,7 @@ class TestGenerateSessionCompletionWithOptionalSummary:
                 "cognee.modules.retrieval.utils.completion.LLMGateway.acreate_structured_output",
                 new_callable=AsyncMock,
                 return_value="Generated answer",
-            ) as mock_llm,
+            ),
             patch(
                 "cognee.infrastructure.session.feedback_detection.detect_feedback",
                 new_callable=AsyncMock,
