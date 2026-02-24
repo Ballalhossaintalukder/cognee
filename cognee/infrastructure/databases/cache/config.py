@@ -15,7 +15,7 @@ class CacheConfig(BaseSettings):
     - agentic_lock_timeout: Maximum time (in seconds) to wait for the lock release.
     - usage_logging: Enable/disable usage logging for API endpoints and MCP tools.
     - usage_logging_ttl: Time-to-live for usage logs in seconds (default: 7 days).
-    - auto_feedback: When caching is True, run automatic feedback detection on each query (default True).
+    - auto_feedback: When caching is True, run automatic feedback detection on each query (default False).
     """
 
     cache_backend: Literal["redis", "fs"] = "fs"
