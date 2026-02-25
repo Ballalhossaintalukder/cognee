@@ -38,7 +38,9 @@ def set_up_config():
 
 
 async def visualize_data():
-    graph_file_path = os.path.join(os.path.dirname(__file__), ".artifacts/graph_visualization.html")
+    graph_file_path = os.path.join(
+        os.path.dirname(__file__), ".artifacts", "graph_visualization.html"
+    )
     await visualize_graph(graph_file_path)
 
 

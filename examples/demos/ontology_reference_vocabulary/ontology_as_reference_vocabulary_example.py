@@ -10,12 +10,12 @@ from cognee.modules.ontology.ontology_config import Config
 from pathlib import Path
 
 with open(
-    os.path.join(Path(__file__).resolve().parent, "data/text_1.txt"), "r", encoding="utf-8"
+    os.path.join(Path(__file__).resolve().parent, "data", "text_1.txt"), "r", encoding="utf-8"
 ) as f:
     text_1 = f.read()
 
 with open(
-    os.path.join(Path(__file__).resolve().parent, "data/text_2.txt"), "r", encoding="utf-8"
+    os.path.join(Path(__file__).resolve().parent, "data", "text_2.txt"), "r", encoding="utf-8"
 ) as f:
     text_2 = f.read()
 
@@ -32,7 +32,7 @@ async def main():
     # Step 3: Create knowledge graph
 
     ontology_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "data/basic_ontology.owl"
+        os.path.dirname(os.path.abspath(__file__)), "data", "basic_ontology.owl"
     )
 
     # Create full config structure manually
@@ -53,7 +53,7 @@ async def main():
     print(search_results)
 
     visualize_graph_path = os.path.join(
-        os.path.dirname(__file__), ".artifacts/ontology_as_reference_vocabulary.html"
+        os.path.dirname(__file__), ".artifacts", "ontology_as_reference_vocabulary.html"
     )
     await visualize_graph(visualize_graph_path)
 
