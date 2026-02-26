@@ -120,7 +120,7 @@ jobs:
           EMBEDDING_MODEL: "amazon.titan-embed-text-v2:0"
           EMBEDDING_DIMENSIONS: "1024"
           EMBEDDING_MAX_TOKENS: "8191"
-        run: uv run python ./examples/python/simple_example.py
+        run: uv run python ./examples/demos/simple_cognee_example.py
 
   test-bedrock-aws-credentials:
     name: Run Bedrock AWS Credentials Test
