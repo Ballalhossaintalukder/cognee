@@ -2,7 +2,7 @@ name: Weighted Edges Tests
 
 on:
   push:
-    branches: [ main, dev, weighted_edges,feature/cog-4113-engineering-merge-new-examples-and-examples-folders ]
+    branches: [ main, dev, weighted_edges]
     paths:
       - 'cognee/modules/graph/utils/get_graph_from_model.py'
       - 'cognee/infrastructure/engine/models/Edge.py'
