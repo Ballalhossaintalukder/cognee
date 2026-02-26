@@ -97,7 +97,9 @@ async def main():
     await add_data_points(all_data_points)
 
     # Visualize the graph
-    graph_visualization_path = path.join(path.dirname(__file__), "dunder_mifflin_graph.html")
+    graph_visualization_path = path.join(
+        path.dirname(__file__), "dunder_mifflin_company_graph.html"
+    )
     await visualize_graph(graph_visualization_path)
 
     print("Dynamic multiple edges graph has been created and visualized!")
