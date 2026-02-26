@@ -1,6 +1,8 @@
 name: Reusable Basic Tests
 
 on:
+  push:
+    branches: [feature/cog-4113-engineering-merge-new-examples-and-examples-folders ]
   workflow_call:
     inputs:
       python-version:
