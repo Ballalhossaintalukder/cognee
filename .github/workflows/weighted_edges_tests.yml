@@ -131,7 +131,7 @@ jobs:
 
       - name: Test Weighted Edges Example
         run: |
-          uv run python examples/python/weighted_edges_example.py
+          uv run python examples/demos/dynamic_multiple_weighted_edges_example.py
 
       - name: Verify Visualization File Created
         run: |
@@ -162,9 +162,9 @@ jobs:
       - name: Run Linting on Weighted Edges Files
         uses: astral-sh/ruff-action@v3
         with:
-          args: "check cognee/modules/graph/utils/get_graph_from_model.py cognee/tests/unit/interfaces/graph/test_weighted_edges.py examples/python/weighted_edges_example.py"
+          args: "check cognee/modules/graph/utils/get_graph_from_model.py cognee/tests/unit/interfaces/graph/test_weighted_edges.py examples/demos/dynamic_multiple_weighted_edges_example.py"
 
       - name: Run Formatting Check on Weighted Edges Files
         uses: astral-sh/ruff-action@v3
         with:
-          args: "format --check cognee/modules/graph/utils/get_graph_from_model.py cognee/tests/unit/interfaces/graph/test_weighted_edges.py examples/python/weighted_edges_example.py"
+          args: "format --check cognee/modules/graph/utils/get_graph_from_model.py cognee/tests/unit/interfaces/graph/test_weighted_edges.py examples/demos/dynamic_multiple_weighted_edges_example.py"
