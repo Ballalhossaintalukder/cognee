@@ -180,7 +180,7 @@ jobs:
           EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
           EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
           EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
-        run: uv run python ./examples/python/agentic_reasoning_procurement_example.py
+        run: uv run python ./examples/custom_pipelines/agentic_reasoning_procurement_example.py
 
   test-memify:
     name: Run Memify Example
@@ -208,7 +208,7 @@ jobs:
           EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
           EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
           EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
-        run: uv run python ./examples/python/memify_coding_agent_example.py
+        run: uv run python ./examples/custom_pipelines/memify_coding_agent_rule_extraction_example.py
 
   test-custom-pipeline:
     name: Run Custom Pipeline Example
@@ -324,7 +324,7 @@ jobs:
           DB_PORT: 5432
           DB_USERNAME: cognee
           DB_PASSWORD: cognee
-        run: uv run python ./examples/python/permissions_example.py
+        run: uv run python ./examples/configurations/permissions_example/user_permissions_and_access_control_example.py
 
   # Docling test - NO container (runs on macOS, container only works on Linux)
   test_docling_add:
