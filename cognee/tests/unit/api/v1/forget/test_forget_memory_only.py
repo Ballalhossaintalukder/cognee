@@ -99,6 +99,7 @@ async def test_forget_dataset_memory_clears_graph_and_resets_pipeline(monkeypatc
     engine = _FakeEngine(session)
 
     mock_delete = AsyncMock()
+    mock_reset_status = AsyncMock()
     monkeypatch.setattr(
         forget_module,
         "_resolve_dataset_id",
@@ -114,6 +115,10 @@ async def test_forget_dataset_memory_clears_graph_and_resets_pipeline(monkeypatc
             "cognee.infrastructure.databases.relational.get_relational_engine",
             return_value=engine,
         ),
+        patch(
+            "cognee.modules.pipelines.layers.reset_dataset_pipeline_run_status.reset_dataset_pipeline_run_status",
+            mock_reset_status,
+        ),
         patch("sqlalchemy.orm.attributes.flag_modified"),
     ):
         result = await forget_module._forget_dataset_memory(str(DATASET_ID), USER)
@@ -123,6 +128,11 @@ async def test_forget_dataset_memory_clears_graph_and_resets_pipeline(monkeypatc
     assert result["data_records_reset"] == 2
 
     mock_delete.assert_awaited_once_with(DATASET_ID, USER.id)
+    mock_reset_status.assert_awaited_once_with(
+        dataset_id=DATASET_ID,
+        user=USER,
+        pipeline_names=["cognify_pipeline"],
+    )
 
     # pipeline_status should have dataset entry removed
     assert str(DATASET_ID) not in data_a.pipeline_status["cognify"]
@@ -148,6 +158,7 @@ async def test_forget_dataset_memory_skips_records_without_pipeline_status(monke
         "_resolve_dataset_id",
         AsyncMock(return_value=DATASET_ID),
     )
+    mock_reset_status = AsyncMock()
 
     with (
         patch(
@@ -158,11 +169,16 @@ async def test_forget_dataset_memory_skips_records_without_pipeline_status(monke
             "cognee.infrastructure.databases.relational.get_relational_engine",
             return_value=engine,
         ),
+        patch(
+            "cognee.modules.pipelines.layers.reset_dataset_pipeline_run_status.reset_dataset_pipeline_run_status",
+            mock_reset_status,
+        ),
     ):
         result = await forget_module._forget_dataset_memory(str(DATASET_ID), USER)
 
     assert result["status"] == "success"
     assert result["data_records_reset"] == 2
+    mock_reset_status.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -173,8 +189,10 @@ async def test_forget_dataset_memory_skips_records_without_pipeline_status(monke
 @pytest.mark.asyncio
 async def test_forget_data_memory_clears_graph_and_resets_pipeline(monkeypatch):
     """memory_only=True with dataset+data_id clears graph/vector for the item."""
+    other_dataset_id = str(uuid4())
     pipeline_status = {
-        "cognify": {str(DATASET_ID): "COMPLETE"},
+        "add_pipeline": {str(DATASET_ID): "COMPLETE"},
+        "cognify_pipeline": {str(DATASET_ID): "COMPLETE", other_dataset_id: "COMPLETE"},
     }
     data_record = _make_data_record(DATA_ID_A, pipeline_status)
 
@@ -207,8 +225,12 @@ async def test_forget_data_memory_clears_graph_and_resets_pipeline(monkeypatch):
 
     mock_delete.assert_awaited_once_with(DATASET_ID, DATA_ID_A, USER.id)
 
-    # pipeline_status should have dataset entry removed
-    assert str(DATASET_ID) not in data_record.pipeline_status["cognify"]
+    # only cognify status should be reset for this dataset
+    assert str(DATASET_ID) not in data_record.pipeline_status["cognify_pipeline"]
+    # other cognify dataset entries should remain
+    assert other_dataset_id in data_record.pipeline_status["cognify_pipeline"]
+    # add pipeline status should remain untouched
+    assert str(DATASET_ID) in data_record.pipeline_status["add_pipeline"]
     assert session.committed
 
 

@@ -163,8 +163,14 @@ class OntologyService:
         if ontology_key not in metadata:
             raise ValueError(f"Ontology key '{ontology_key}' not found")
 
-        file_path = user_dir / f"{ontology_key}.owl"
-        if file_path.exists():
+        base_dir = user_dir.resolve()
+        file_path = (user_dir / f"{ontology_key}.owl").resolve()
+
+        # Prevent path traversal from deleting files outside the user's ontology directory.
+        if file_path.parent != base_dir:
+            raise ValueError("Invalid ontology key")
+
+        if file_path.is_file():
             file_path.unlink()
 
         del metadata[ontology_key]

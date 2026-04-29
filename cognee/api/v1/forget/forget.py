@@ -1,6 +1,7 @@
 from uuid import UUID
 from typing import Optional, Union
 
+from cognee.context_global_variables import set_database_global_context_variables
 from cognee.shared.logging_utils import get_logger
 from cognee.modules.observability import (
     new_span,
@@ -114,28 +115,29 @@ async def forget(
         if user is None:
             user = await get_default_user()
 
-        if everything:
-            result = await _forget_everything(user)
-            span.set_attribute(COGNEE_RESULT_COUNT, result.get("datasets_removed", 0))
-            return result
+        async with set_database_global_context_variables(dataset, user.id):
+            if everything:
+                result = await _forget_everything(user)
+                span.set_attribute(COGNEE_RESULT_COUNT, result.get("datasets_removed", 0))
+                return result
 
-        if memory_only:
-            if dataset is None:
-                raise ValueError("memory_only requires dataset to be specified.")
+            if memory_only:
+                if dataset is None:
+                    raise ValueError("memory_only requires dataset to be specified.")
+                if data_id is not None:
+                    return await _forget_data_memory(data_id, dataset, user)
+                return await _forget_dataset_memory(dataset, user)
+
+            if dataset is not None and data_id is not None:
+                return await _forget_data_item(data_id, dataset, user)
+
+            if dataset is not None:
+                return await _forget_dataset(dataset, user)
+
             if data_id is not None:
-                return await _forget_data_memory(data_id, dataset, user)
-            return await _forget_dataset_memory(dataset, user)
+                raise ValueError("data_id requires dataset to be specified.")
 
-        if dataset is not None and data_id is not None:
-            return await _forget_data_item(data_id, dataset, user)
-
-        if dataset is not None:
-            return await _forget_dataset(dataset, user)
-
-        if data_id is not None:
-            raise ValueError("data_id requires dataset to be specified.")
-
-        raise ValueError("Specify dataset, data_id+dataset, or everything=True.")
+            raise ValueError("Specify dataset, data_id+dataset, or everything=True.")
 
 
 async def _forget_everything(user) -> dict:
@@ -236,6 +238,9 @@ async def _forget_dataset_memory(dataset_ref: Union[str, UUID], user) -> dict:
     from cognee.modules.graph.methods.delete_dataset_nodes_and_edges import (
         delete_dataset_nodes_and_edges,
     )
+    from cognee.modules.pipelines.layers.reset_dataset_pipeline_run_status import (
+        reset_dataset_pipeline_run_status,
+    )
 
     dataset_id = await _resolve_dataset_id(dataset_ref, user)
 
@@ -264,6 +269,13 @@ async def _forget_dataset_memory(dataset_ref: Union[str, UUID], user) -> dict:
 
         await session.commit()
 
+    # 3. Reset dataset-level pipeline run status so cached cognify runs can execute again.
+    await reset_dataset_pipeline_run_status(
+        dataset_id=dataset_id,
+        user=user,
+        pipeline_names=["cognify_pipeline"],
+    )
+
     logger.info(
         "forget: cleared memory for dataset=%s, user=%s (%d data records reset)",
         dataset_id,
@@ -286,7 +298,7 @@ async def _forget_data_memory(data_id: UUID, dataset_ref: Union[str, UUID], user
     Cleanup scope:
     - Graph DB (nodes, edges for this data item): yes
     - Vector DB (embeddings for this data item): yes
-    - Pipeline status (for this data item): reset
+    - Pipeline status (for this data item): reset for cognify only
     - Relational DB (data record): preserved
     - Raw file: preserved
     """
@@ -314,10 +326,14 @@ async def _forget_data_memory(data_id: UUID, dataset_ref: Union[str, UUID], user
         if data_record and data_record.pipeline_status:
             dataset_id_str = str(dataset_id)
             updated = False
-            for pipeline_name in list(data_record.pipeline_status.keys()):
-                if dataset_id_str in data_record.pipeline_status[pipeline_name]:
-                    del data_record.pipeline_status[pipeline_name][dataset_id_str]
-                    updated = True
+            # Memory-only forget removes cognify artifacts (graph/vector), so only
+            # cognify_pipeline status should be reset. Keep add status intact.
+            if (
+                "cognify_pipeline" in data_record.pipeline_status
+                and dataset_id_str in data_record.pipeline_status["cognify_pipeline"]
+            ):
+                del data_record.pipeline_status["cognify_pipeline"][dataset_id_str]
+                updated = True
             if updated:
                 orm_attributes.flag_modified(data_record, "pipeline_status")
             await session.commit()

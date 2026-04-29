@@ -142,6 +142,24 @@ class TestOntologyServiceDelete:
         assert "delete_this" not in updated_metadata
         assert (user_dir / "keep_this.owl").exists()
 
+    def test_delete_ontology_rejects_path_traversal_key(self, ontology_service, tmp_path):
+        """delete_ontology rejects keys that resolve outside the user directory."""
+        user = SimpleNamespace(id="user-1")
+        user_dir = tmp_path / "user-1"
+        user_dir.mkdir()
+
+        metadata = {
+            "../escape": {
+                "filename": "escape.owl",
+                "size_bytes": 10,
+                "uploaded_at": "2024-01-01",
+            }
+        }
+        (user_dir / "metadata.json").write_text(json.dumps(metadata))
+
+        with pytest.raises(ValueError, match="Invalid ontology key"):
+            ontology_service.delete_ontology("../escape", user)
+
 
 # ---------------------------------------------------------------------------
 # API endpoint tests for DELETE /api/v1/ontologies/{key}
