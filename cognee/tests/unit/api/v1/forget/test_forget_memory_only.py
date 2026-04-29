@@ -77,6 +77,14 @@ class _FakeEngine:
         return self._session
 
 
+class _NoOpAsyncContext:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Tests for _forget_dataset_memory
 # ---------------------------------------------------------------------------
@@ -280,6 +288,10 @@ async def test_forget_memory_only_without_dataset_raises(monkeypatch):
         patch("cognee.api.v1.serve.state.get_remote_client", return_value=None),
         patch("cognee.low_level.setup", AsyncMock()),
         patch("cognee.modules.users.methods.get_default_user", AsyncMock(return_value=USER)),
+        patch(
+            "cognee.api.v1.forget.forget.set_database_global_context_variables",
+            return_value=_NoOpAsyncContext(),
+        ),
     ):
         with pytest.raises(ValueError, match="memory_only requires dataset"):
             await forget_module.forget(memory_only=True)
@@ -302,6 +314,10 @@ async def test_forget_routes_to_dataset_memory(monkeypatch):
         patch("cognee.api.v1.serve.state.get_remote_client", return_value=None),
         patch("cognee.low_level.setup", AsyncMock()),
         patch("cognee.modules.users.methods.get_default_user", AsyncMock(return_value=USER)),
+        patch(
+            "cognee.api.v1.forget.forget.set_database_global_context_variables",
+            return_value=_NoOpAsyncContext(),
+        ),
     ):
         result = await forget_module.forget(dataset="my-dataset", memory_only=True)
 
@@ -326,6 +342,10 @@ async def test_forget_routes_to_data_memory(monkeypatch):
         patch("cognee.api.v1.serve.state.get_remote_client", return_value=None),
         patch("cognee.low_level.setup", AsyncMock()),
         patch("cognee.modules.users.methods.get_default_user", AsyncMock(return_value=USER)),
+        patch(
+            "cognee.api.v1.forget.forget.set_database_global_context_variables",
+            return_value=_NoOpAsyncContext(),
+        ),
     ):
         result = await forget_module.forget(
             dataset="my-dataset", data_id=DATA_ID_A, memory_only=True
@@ -365,6 +385,10 @@ async def test_forget_telemetry_target_labels(monkeypatch):
         patch("cognee.api.v1.serve.state.get_remote_client", return_value=None),
         patch("cognee.low_level.setup", AsyncMock()),
         patch("cognee.modules.users.methods.get_default_user", AsyncMock(return_value=USER)),
+        patch(
+            "cognee.api.v1.forget.forget.set_database_global_context_variables",
+            return_value=_NoOpAsyncContext(),
+        ),
     ):
         await forget_module.forget(dataset="ds", memory_only=True)
         await forget_module.forget(dataset="ds", data_id=DATA_ID_A, memory_only=True)
