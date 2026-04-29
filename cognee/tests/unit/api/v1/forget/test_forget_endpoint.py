@@ -6,6 +6,7 @@ Covers:
 """
 
 import uuid
+import importlib
 import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -13,6 +14,8 @@ from fastapi.testclient import TestClient
 
 from cognee.api.client import app
 from cognee.modules.users.methods import get_authenticated_user
+
+forget_pkg = importlib.import_module("cognee.api.v1.forget")
 
 
 @pytest.fixture(scope="session")
@@ -50,7 +53,7 @@ def test_forget_endpoint_passes_memory_only_flag(client, mock_default_user):
         "status": "success",
     }
 
-    with patch("cognee.api.v1.forget.forget", new_callable=AsyncMock) as mock_forget:
+    with patch.object(forget_pkg, "forget", new_callable=AsyncMock) as mock_forget:
         mock_forget.return_value = expected_result
 
         response = client.post(
@@ -69,7 +72,7 @@ def test_forget_endpoint_passes_memory_only_flag(client, mock_default_user):
 
 def test_forget_endpoint_memory_only_defaults_to_false(client):
     """POST /v1/forget without memory_only should default to False."""
-    with patch("cognee.api.v1.forget.forget", new_callable=AsyncMock) as mock_forget:
+    with patch.object(forget_pkg, "forget", new_callable=AsyncMock) as mock_forget:
         mock_forget.return_value = {"status": "success", "datasets_removed": 0}
 
         response = client.post(
@@ -87,7 +90,7 @@ def test_forget_endpoint_memory_only_with_data_id(client):
     dataset_id = str(uuid.uuid4())
     data_id = str(uuid.uuid4())
 
-    with patch("cognee.api.v1.forget.forget", new_callable=AsyncMock) as mock_forget:
+    with patch.object(forget_pkg, "forget", new_callable=AsyncMock) as mock_forget:
         mock_forget.return_value = {
             "data_id": data_id,
             "dataset_id": dataset_id,

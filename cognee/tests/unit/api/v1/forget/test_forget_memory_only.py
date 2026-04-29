@@ -16,6 +16,16 @@ from unittest.mock import AsyncMock, patch
 
 # Import the actual module (not the function) to access private helpers
 forget_module = importlib.import_module("cognee.api.v1.forget.forget")
+serve_state_module = importlib.import_module("cognee.api.v1.serve.state")
+delete_dataset_nodes_and_edges_module = importlib.import_module(
+    "cognee.modules.graph.methods.delete_dataset_nodes_and_edges"
+)
+delete_data_nodes_and_edges_module = importlib.import_module(
+    "cognee.modules.graph.methods.delete_data_nodes_and_edges"
+)
+reset_dataset_pipeline_run_status_module = importlib.import_module(
+    "cognee.modules.pipelines.layers.reset_dataset_pipeline_run_status"
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -115,16 +125,18 @@ async def test_forget_dataset_memory_clears_graph_and_resets_pipeline(monkeypatc
     )
 
     with (
-        patch(
-            "cognee.modules.graph.methods.delete_dataset_nodes_and_edges.delete_dataset_nodes_and_edges",
+        patch.object(
+            delete_dataset_nodes_and_edges_module,
+            "delete_dataset_nodes_and_edges",
             mock_delete,
         ),
         patch(
             "cognee.infrastructure.databases.relational.get_relational_engine",
             return_value=engine,
         ),
-        patch(
-            "cognee.modules.pipelines.layers.reset_dataset_pipeline_run_status.reset_dataset_pipeline_run_status",
+        patch.object(
+            reset_dataset_pipeline_run_status_module,
+            "reset_dataset_pipeline_run_status",
             mock_reset_status,
         ),
         patch("sqlalchemy.orm.attributes.flag_modified"),
@@ -169,16 +181,18 @@ async def test_forget_dataset_memory_skips_records_without_pipeline_status(monke
     mock_reset_status = AsyncMock()
 
     with (
-        patch(
-            "cognee.modules.graph.methods.delete_dataset_nodes_and_edges.delete_dataset_nodes_and_edges",
+        patch.object(
+            delete_dataset_nodes_and_edges_module,
+            "delete_dataset_nodes_and_edges",
             AsyncMock(),
         ),
         patch(
             "cognee.infrastructure.databases.relational.get_relational_engine",
             return_value=engine,
         ),
-        patch(
-            "cognee.modules.pipelines.layers.reset_dataset_pipeline_run_status.reset_dataset_pipeline_run_status",
+        patch.object(
+            reset_dataset_pipeline_run_status_module,
+            "reset_dataset_pipeline_run_status",
             mock_reset_status,
         ),
     ):
@@ -215,8 +229,9 @@ async def test_forget_data_memory_clears_graph_and_resets_pipeline(monkeypatch):
     )
 
     with (
-        patch(
-            "cognee.modules.graph.methods.delete_data_nodes_and_edges.delete_data_nodes_and_edges",
+        patch.object(
+            delete_data_nodes_and_edges_module,
+            "delete_data_nodes_and_edges",
             mock_delete,
         ),
         patch(
@@ -255,8 +270,9 @@ async def test_forget_data_memory_no_record_found(monkeypatch):
     )
 
     with (
-        patch(
-            "cognee.modules.graph.methods.delete_data_nodes_and_edges.delete_data_nodes_and_edges",
+        patch.object(
+            delete_data_nodes_and_edges_module,
+            "delete_data_nodes_and_edges",
             AsyncMock(),
         ),
         patch(
@@ -285,12 +301,11 @@ async def test_forget_memory_only_without_dataset_raises(monkeypatch):
 
     with (
         patch("cognee.shared.utils.send_telemetry", lambda *a, **kw: None),
-        patch("cognee.api.v1.serve.state.get_remote_client", return_value=None),
+        patch.object(serve_state_module, "get_remote_client", return_value=None),
         patch("cognee.low_level.setup", AsyncMock()),
         patch("cognee.modules.users.methods.get_default_user", AsyncMock(return_value=USER)),
-        patch(
-            "cognee.api.v1.forget.forget.set_database_global_context_variables",
-            return_value=_NoOpAsyncContext(),
+        patch.object(
+            forget_module, "set_database_global_context_variables", return_value=_NoOpAsyncContext()
         ),
     ):
         with pytest.raises(ValueError, match="memory_only requires dataset"):
@@ -311,12 +326,11 @@ async def test_forget_routes_to_dataset_memory(monkeypatch):
 
     with (
         patch("cognee.shared.utils.send_telemetry", lambda *a, **kw: None),
-        patch("cognee.api.v1.serve.state.get_remote_client", return_value=None),
+        patch.object(serve_state_module, "get_remote_client", return_value=None),
         patch("cognee.low_level.setup", AsyncMock()),
         patch("cognee.modules.users.methods.get_default_user", AsyncMock(return_value=USER)),
-        patch(
-            "cognee.api.v1.forget.forget.set_database_global_context_variables",
-            return_value=_NoOpAsyncContext(),
+        patch.object(
+            forget_module, "set_database_global_context_variables", return_value=_NoOpAsyncContext()
         ),
     ):
         result = await forget_module.forget(dataset="my-dataset", memory_only=True)
@@ -339,12 +353,11 @@ async def test_forget_routes_to_data_memory(monkeypatch):
 
     with (
         patch("cognee.shared.utils.send_telemetry", lambda *a, **kw: None),
-        patch("cognee.api.v1.serve.state.get_remote_client", return_value=None),
+        patch.object(serve_state_module, "get_remote_client", return_value=None),
         patch("cognee.low_level.setup", AsyncMock()),
         patch("cognee.modules.users.methods.get_default_user", AsyncMock(return_value=USER)),
-        patch(
-            "cognee.api.v1.forget.forget.set_database_global_context_variables",
-            return_value=_NoOpAsyncContext(),
+        patch.object(
+            forget_module, "set_database_global_context_variables", return_value=_NoOpAsyncContext()
         ),
     ):
         result = await forget_module.forget(
@@ -382,12 +395,11 @@ async def test_forget_telemetry_target_labels(monkeypatch):
 
     with (
         patch("cognee.shared.utils.send_telemetry", fake_telemetry),
-        patch("cognee.api.v1.serve.state.get_remote_client", return_value=None),
+        patch.object(serve_state_module, "get_remote_client", return_value=None),
         patch("cognee.low_level.setup", AsyncMock()),
         patch("cognee.modules.users.methods.get_default_user", AsyncMock(return_value=USER)),
-        patch(
-            "cognee.api.v1.forget.forget.set_database_global_context_variables",
-            return_value=_NoOpAsyncContext(),
+        patch.object(
+            forget_module, "set_database_global_context_variables", return_value=_NoOpAsyncContext()
         ),
     ):
         await forget_module.forget(dataset="ds", memory_only=True)
