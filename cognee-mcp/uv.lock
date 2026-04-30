@@ -1006,13 +1006,18 @@ postgres = [
     { name = "pgvector" },
     { name = "psycopg2" },
 ]
+postgres-binary = [
+    { name = "asyncpg" },
+    { name = "pgvector" },
+    { name = "psycopg2-binary" },
+]
 
 [[package]]
 name = "cognee-mcp"
 version = "0.5.4"
 source = { editable = "." }
 dependencies = [
-    { name = "cognee", extra = ["docs", "neo4j", "postgres"] },
+    { name = "cognee", extra = ["docs", "neo4j", "postgres-binary"] },
     { name = "fastmcp" },
     { name = "httpx" },
     { name = "mcp" },
@@ -1031,7 +1036,7 @@ postgres-binary = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cognee", extras = ["postgres", "docs", "neo4j"], specifier = "==1.0.0" },
+    { name = "cognee", extras = ["postgres-binary", "docs", "neo4j"], specifier = ">=1.0.0,<2.0.0" },
     { name = "fastmcp", specifier = ">=3.2.0" },
     { name = "httpx", specifier = ">=0.27.0,<1.0.0" },
     { name = "mcp", specifier = ">=1.12.0,<2.0.0" },

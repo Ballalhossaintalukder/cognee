@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import sys
 import argparse
 import asyncio
@@ -33,6 +32,29 @@ try:
     from .strip_vectors import strip_vectors
 except ImportError:
     from strip_vectors import strip_vectors
+
+try:
+    from .server_utils import (
+        format_recall_results,
+        format_search_results,
+        normalize_delete_mode,
+        normalize_search_type,
+        parse_cognify_data,
+        parse_csv_list,
+        validate_cognify_file_paths,
+        validate_top_k,
+    )
+except ImportError:
+    from server_utils import (
+        format_recall_results,
+        format_search_results,
+        normalize_delete_mode,
+        normalize_search_type,
+        parse_cognify_data,
+        parse_csv_list,
+        validate_cognify_file_paths,
+        validate_top_k,
+    )
 
 
 try:
@@ -109,42 +131,6 @@ def _configure_transport_security(host: str) -> None:
 def _is_running_in_docker() -> bool:
     """Check if the process is running inside a Docker container."""
     return os.path.exists("/.dockerenv") or os.path.isdir("/app")
-
-
-def _looks_like_file_path(data: str) -> bool:
-    """Check if the data string looks like a local file path."""
-    data = data.strip()
-    # Unix absolute path, Windows drive letter path, or file:// URI
-    if data.startswith("/") or re.match(r"^[A-Za-z]:\\", data) or data.startswith("file://"):
-        return True
-    return False
-
-
-def _validate_file_path(data: str) -> Optional[str]:
-    """
-    If data looks like a file path, validate it exists.
-    Returns an error message string if invalid, or None if OK.
-    """
-    if not _looks_like_file_path(data):
-        return None
-
-    path = data.strip()
-    if path.startswith("file://"):
-        path = path[7:]
-
-    if not os.path.exists(path):
-        msg = f"File not found: {path}"
-        if _is_running_in_docker():
-            msg += (
-                "\n\nIt looks like you're running inside Docker. Host file paths are not "
-                "accessible inside the container. To ingest local files, mount a volume in "
-                "docker-compose.yml:\n"
-                "  volumes:\n"
-                "    - /path/to/your/data:/data\n"
-                "Then reference the file as /data/<filename> instead."
-            )
-        return msg
-    return None
 
 
 def _get_cors_origins() -> list[str]:
@@ -315,8 +301,20 @@ async def cognify(
 
     """
 
-    # Validate file paths before launching background task
-    file_error = _validate_file_path(data)
+    try:
+        parsed_data = parse_cognify_data(data)
+    except ValueError as e:
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Error: {str(e)}",
+            )
+        ]
+
+    file_error = validate_cognify_file_paths(
+        parsed_data.items,
+        is_running_in_docker=_is_running_in_docker,
+    )
     if file_error:
         return [
             types.TextContent(
@@ -326,7 +324,7 @@ async def cognify(
         ]
 
     async def cognify_task(
-        data: str,
+        data_items: list[str],
         dataset_name: str = "main_dataset",
         graph_model_file: str = None,
         graph_model_name: str = None,
@@ -347,7 +345,8 @@ async def cognify(
 
                     graph_model = load_class(graph_model_file, graph_model_name)
 
-            await cognee_client.add(data, dataset_name=dataset_name)
+            for data_item in data_items:
+                await cognee_client.add(data_item, dataset_name=dataset_name)
 
             try:
                 await cognee_client.cognify(
@@ -370,7 +369,7 @@ async def cognify(
 
     asyncio.create_task(
         cognify_task_wrapper(
-            data=data,
+            data_items=parsed_data.items,
             dataset_name=dataset_name,
             graph_model_file=graph_model_file,
             graph_model_name=graph_model_name,
@@ -381,6 +380,7 @@ async def cognify(
     log_file = get_log_file_location()
     text = (
         f"Background process launched due to MCP timeout limitations.\n"
+        f"Queued {len(parsed_data.items)} item(s) for dataset '{dataset_name}'.\n"
         f"To check current cognify status use the cognify_status tool\n"
         f"or check the log file at: {log_file}"
     )
@@ -589,6 +589,12 @@ async def search(
 
     """
 
+    try:
+        normalized_search_type = normalize_search_type(search_type)
+        normalized_top_k = validate_top_k(top_k)
+    except ValueError as e:
+        return [types.TextContent(type="text", text=f"Error: {str(e)}")]
+
     async def search_task(
         search_query: str, search_type: str, top_k: int, datasets_list: list = None
     ) -> str:
@@ -626,62 +632,28 @@ async def search(
             # text_vector contains raw floats (~92KB per result), useless for clients
             search_results = strip_vectors(search_results)
 
-            def _combine_completion_results(results):
-                """Combine results from all datasets instead of returning only the first.
+            if not cognee_client.use_api and search_type == "INSIGHTS":
+                return retrieved_edges_to_string(search_results)
 
-                Each result may be a dict (from _backwards_compatible_search_results)
-                or a SearchResult object. Results are labeled with their dataset name
-                so users can distinguish which dataset each answer came from.
-                """
-                if not isinstance(results, list) or len(results) == 0:
-                    return str(results)
-                combined = []
-                for sr in results:
-                    if isinstance(sr, dict):
-                        ds_name = sr.get("dataset_name", "unknown")
-                        sr_content = sr.get("search_result", str(sr))
-                    elif hasattr(sr, "dataset_name") and hasattr(sr, "search_result"):
-                        ds_name = sr.dataset_name or "unknown"
-                        sr_content = sr.search_result
-                    else:
-                        combined.append(str(sr))
-                        continue
-                    if isinstance(sr_content, list):
-                        for item in sr_content:
-                            combined.append(f"[{ds_name}] {item}")
-                    else:
-                        combined.append(f"[{ds_name}] {sr_content}")
-                return "\n\n".join(combined)
-
-            # Handle different result formats based on API vs direct mode
-            if cognee_client.use_api:
-                # API mode returns JSON-serialized results
-                if isinstance(search_results, str):
-                    return search_results
-                elif isinstance(search_results, list):
-                    if search_type.upper() in ["GRAPH_COMPLETION", "RAG_COMPLETION"]:
-                        return _combine_completion_results(search_results)
-                    return str(search_results)
-                else:
-                    return json.dumps(search_results, cls=JSONEncoder)
-            else:
-                # Direct mode processing
-                if search_type.upper() == "CODE":
-                    return json.dumps(search_results, cls=JSONEncoder)
-                elif search_type.upper() in ("GRAPH_COMPLETION", "RAG_COMPLETION"):
-                    return _combine_completion_results(search_results)
-                elif search_type.upper() == "CHUNKS":
-                    return str(search_results)
-                elif search_type.upper() == "INSIGHTS":
-                    results = retrieved_edges_to_string(search_results)
-                    return results
-                else:
-                    return str(search_results)
+            return format_search_results(
+                search_results,
+                search_type,
+                json_encoder=JSONEncoder,
+            )
 
     # Parse comma-separated datasets into list
-    datasets_list = [d.strip() for d in datasets.split(",") if d.strip()] if datasets else None
-    datasets_list = datasets_list or None  # collapse empty list to None
-    search_results = await search_task(search_query, search_type, top_k, datasets_list)
+    datasets_list = parse_csv_list(datasets)
+    try:
+        search_results = await search_task(
+            search_query,
+            normalized_search_type,
+            normalized_top_k,
+            datasets_list,
+        )
+    except Exception as e:
+        error_msg = f"Search failed: {str(e)}"
+        logger.error(error_msg)
+        return [types.TextContent(type="text", text=f"Error: {error_msg}")]
     return [types.TextContent(type="text", text=search_results)]
 
 
@@ -916,8 +888,9 @@ async def delete(data_id: str, dataset_id: str, mode: str = "soft") -> list:
 
     with redirect_stdout(sys.stderr):
         try:
+            normalized_mode = normalize_delete_mode(mode)
             logger.info(
-                f"Starting delete operation for data_id: {data_id}, dataset_id: {dataset_id}, mode: {mode}"
+                f"Starting delete operation for data_id: {data_id}, dataset_id: {dataset_id}, mode: {normalized_mode}"
             )
 
             # Convert string UUIDs to UUID objects
@@ -926,7 +899,7 @@ async def delete(data_id: str, dataset_id: str, mode: str = "soft") -> list:
 
             # Call the cognee delete function via client
             result = await cognee_client.delete(
-                data_id=data_uuid, dataset_id=dataset_uuid, mode=mode
+                data_id=data_uuid, dataset_id=dataset_uuid, mode=normalized_mode
             )
 
             logger.info(f"Delete operation completed successfully: {result}")
@@ -942,8 +915,7 @@ async def delete(data_id: str, dataset_id: str, mode: str = "soft") -> list:
             ]
 
         except ValueError as e:
-            # Handle UUID parsing errors
-            error_msg = f"❌ Invalid UUID format: {str(e)}"
+            error_msg = f"❌ Invalid delete request: {str(e)}"
             logger.error(error_msg)
             return [types.TextContent(type="text", text=error_msg)]
 
@@ -1081,27 +1053,21 @@ async def recall(
     """
     with redirect_stdout(sys.stderr):
         try:
-            dataset_list = [d.strip() for d in datasets.split(",")] if datasets else None
+            normalized_top_k = validate_top_k(top_k)
+            dataset_list = parse_csv_list(datasets)
             results = await cognee_client.recall(
                 query_text=query,
                 search_type=search_type,
                 datasets=dataset_list,
                 session_id=session_id,
-                top_k=top_k,
+                top_k=normalized_top_k,
             )
-            if not results:
-                return [types.TextContent(type="text", text="No relevant results found.")]
-            # Format results
-            lines = []
-            for r in results:
-                if isinstance(r, dict):
-                    source = r.get("_source", "")
-                    text = r.get("answer", r.get("text", r.get("content", str(r))))
-                    prefix = f"[{source}] " if source else ""
-                    lines.append(f"{prefix}{text}")
-                else:
-                    lines.append(str(r))
-            return [types.TextContent(type="text", text="\n\n".join(lines))]
+            return [
+                types.TextContent(
+                    type="text",
+                    text=format_recall_results(results, json_encoder=JSONEncoder),
+                )
+            ]
         except Exception as e:
             error_msg = f"Recall failed: {str(e)}"
             logger.error(error_msg)
@@ -1173,7 +1139,7 @@ async def improve(
     """
     with redirect_stdout(sys.stderr):
         try:
-            session_list = [s.strip() for s in session_ids.split(",")] if session_ids else None
+            session_list = parse_csv_list(session_ids)
             result = await cognee_client.improve(
                 dataset_name=dataset_name,
                 session_ids=session_list,
@@ -1223,6 +1189,14 @@ async def cognify_status(dataset_name: str = "main_dataset") -> list:
     """
     with redirect_stdout(sys.stderr):
         try:
+            if cognee_client.use_api:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text="❌ Pipeline status is not available in API mode",
+                    )
+                ]
+
             from cognee.modules.data.methods.get_unique_dataset_id import get_unique_dataset_id
             from cognee.modules.users.methods import get_default_user
 
