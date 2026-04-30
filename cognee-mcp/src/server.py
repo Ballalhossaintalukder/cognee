@@ -4,9 +4,10 @@ import sys
 import argparse
 import asyncio
 import subprocess
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Deque, Optional, Tuple
 from cognee.modules.data.methods.get_datasets_by_name import get_datasets_by_name
 from cognee.modules.data.methods.get_last_added_data import get_last_added_data
 from cognee.modules.users.methods import get_default_user
@@ -75,8 +76,31 @@ logger = get_logger()
 
 cognee_client: Optional[CogneeClient] = None
 
-# Stores background task errors keyed by dataset_name so cognify_status can report them
-_task_errors: dict[str, list[tuple[str, str]]] = {}
+# Per-dataset error ring buffer (bounded so long-running servers don't accumulate
+# unbounded memory). Each entry is (iso_timestamp, error_message).
+_TASK_ERROR_HISTORY = 50
+_task_errors: dict[str, Deque[Tuple[str, str]]] = {}
+
+# Strong references to in-flight background tasks. asyncio's event loop only keeps
+# weak references to tasks, so a fire-and-forget task can be GC'd mid-execution if
+# the only reference is a local that went out of scope. Adding here pins them; the
+# done_callback removes them on completion. See:
+# https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _track_background(coro) -> asyncio.Task:
+    """Spawn a background task and pin it so the event loop won't GC it."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
+def _record_task_error(dataset: str, error: str) -> None:
+    """Append a background task error, bounded per-dataset."""
+    bucket = _task_errors.setdefault(dataset, deque(maxlen=_TASK_ERROR_HISTORY))
+    bucket.append((datetime.now(timezone.utc).isoformat(), error))
 
 
 def _configure_transport_security(host: str) -> None:
@@ -355,7 +379,7 @@ async def cognify(
                 logger.info("Cognify process finished.")
             except Exception as e:
                 logger.error("Cognify process failed.")
-                raise ValueError(f"Failed to cognify: {str(e)}")
+                raise ValueError(f"Failed to cognify: {str(e)}") from e
 
     async def cognify_task_wrapper(**kwargs):
         """Wrapper that captures errors from the background task."""
@@ -363,11 +387,10 @@ async def cognify(
             await cognify_task(**kwargs)
         except Exception as e:
             dataset = kwargs.get("dataset_name", "main_dataset")
-            timestamp = datetime.now(timezone.utc).isoformat()
-            _task_errors.setdefault(dataset, []).append((timestamp, str(e)))
+            _record_task_error(dataset, str(e))
             logger.error(f"Background cognify task failed for dataset '{dataset}': {e}")
 
-    asyncio.create_task(
+    _track_background(
         cognify_task_wrapper(
             data_items=parsed_data.items,
             dataset_name=dataset_name,
@@ -447,13 +470,17 @@ async def save_interaction(data: str) -> list:
 
             except Exception as e:
                 logger.error("Save interaction process failed.")
-                raise ValueError(f"Failed to Save interaction: {str(e)}")
+                raise ValueError(f"Failed to Save interaction: {str(e)}") from e
 
-    asyncio.create_task(
-        save_user_agent_interaction(
-            data=data,
-        )
-    )
+    async def save_task_wrapper(**kwargs):
+        """Wrapper that captures errors from the background task."""
+        try:
+            await save_user_agent_interaction(**kwargs)
+        except Exception as e:
+            _record_task_error("main_dataset", str(e))
+            logger.error(f"Background save_interaction task failed: {e}")
+
+    _track_background(save_task_wrapper(data=data))
 
     log_file = get_log_file_location()
     text = (
@@ -1253,7 +1280,20 @@ def retrieved_edges_to_string(search_results):
 
 def load_class(model_file, model_name):
     model_file = os.path.abspath(model_file)
+
+    # Reject obvious nonsense before we hand the path to the import machinery.
+    # Note: this does not sandbox imports — anyone who can call cognify() with
+    # a custom graph_model_file can already run arbitrary code by construction.
+    # Operators exposing this tool over HTTP/SSE must enforce auth at the
+    # transport layer.
+    if not model_file.endswith(".py"):
+        raise ValueError(f"graph_model_file must be a .py file, got: {model_file}")
+    if not os.path.isfile(model_file):
+        raise ValueError(f"graph_model_file not found: {model_file}")
+
     spec = importlib.util.spec_from_file_location("graph_model", model_file)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Could not load module from: {model_file}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
@@ -1375,18 +1415,37 @@ async def main():
     elif not is_remote:
         logger.info("Skipping DB migrations")
 
-    match args.transport.lower():
-        case "sse":
-            logger.info(f"Running MCP server with SSE transport on {args.host}:{args.port}")
-            await run_sse_with_cors()
-        case "http":
-            logger.info(
-                f"Running MCP server with Streamable HTTP transport on {args.host}:{args.port}{args.path}"
-            )
-            await run_http_with_cors()
-        case _:
-            logger.info("Running MCP server with stdio")
-            await mcp.run_stdio_async()
+    try:
+        match args.transport.lower():
+            case "sse":
+                logger.info(f"Running MCP server with SSE transport on {args.host}:{args.port}")
+                await run_sse_with_cors()
+            case "http":
+                logger.info(
+                    f"Running MCP server with Streamable HTTP transport on {args.host}:{args.port}{args.path}"
+                )
+                await run_http_with_cors()
+            case _:
+                logger.info("Running MCP server with stdio")
+                await mcp.run_stdio_async()
+    finally:
+        # Drain background tasks with a bounded timeout so a hung cognify can't
+        # block shutdown indefinitely. Then close the HTTP client pool.
+        if _background_tasks:
+            logger.info(f"Awaiting {len(_background_tasks)} background task(s) before shutdown")
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*_background_tasks, return_exceptions=True),
+                    timeout=10.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"{len(_background_tasks)} background task(s) still running at shutdown; cancelling"
+                )
+                for t in _background_tasks:
+                    t.cancel()
+        if cognee_client is not None:
+            await cognee_client.close()
 
 
 if __name__ == "__main__":
