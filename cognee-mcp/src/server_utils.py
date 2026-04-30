@@ -34,7 +34,9 @@ def parse_cognify_data(data: str) -> ParsedCognifyData:
     try:
         parsed = json.loads(stripped)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"data looks like a JSON array but could not be parsed: {exc.msg}.") from exc
+        raise ValueError(
+            f"data looks like a JSON array but could not be parsed: {exc.msg}."
+        ) from exc
 
     if not isinstance(parsed, list):
         raise ValueError("batch cognify input must be a JSON array of strings.")
@@ -44,9 +46,7 @@ def parse_cognify_data(data: str) -> ParsedCognifyData:
     items: list[str] = []
     for index, item in enumerate(parsed):
         if not isinstance(item, str) or not item.strip():
-            raise ValueError(
-                f"batch cognify item at index {index} must be a non-empty string."
-            )
+            raise ValueError(f"batch cognify item at index {index} must be a non-empty string.")
         items.append(item)
 
     return ParsedCognifyData(items=items, is_batch=True)
@@ -56,9 +56,7 @@ def looks_like_file_path(data: str) -> bool:
     """Return True when a string appears to be a local file path."""
     data = data.strip()
     return (
-        data.startswith("/")
-        or bool(re.match(r"^[A-Za-z]:\\", data))
-        or data.startswith("file://")
+        data.startswith("/") or bool(re.match(r"^[A-Za-z]:\\", data)) or data.startswith("file://")
     )
 
 
@@ -183,7 +181,9 @@ def _unwrap_results(value: Any) -> Any:
     return value
 
 
-def _render_scalar_or_json(value: Any, *, json_encoder: Optional[type[json.JSONEncoder]] = None) -> str:
+def _render_scalar_or_json(
+    value: Any, *, json_encoder: Optional[type[json.JSONEncoder]] = None
+) -> str:
     value = _model_dump(value)
     if isinstance(value, str):
         return value
@@ -192,7 +192,9 @@ def _render_scalar_or_json(value: Any, *, json_encoder: Optional[type[json.JSONE
     return str(value)
 
 
-def _extract_result_text(value: Any, *, json_encoder: Optional[type[json.JSONEncoder]] = None) -> str:
+def _extract_result_text(
+    value: Any, *, json_encoder: Optional[type[json.JSONEncoder]] = None
+) -> str:
     text = _get_field(
         value,
         "search_result",
@@ -238,7 +240,9 @@ def _format_completion_results(
             prefix = f"[{dataset_name}] " if dataset_name else ""
             lines.append(f"{prefix}{rendered}")
 
-    return "\n\n".join(lines) if lines else _render_scalar_or_json(results, json_encoder=json_encoder)
+    return (
+        "\n\n".join(lines) if lines else _render_scalar_or_json(results, json_encoder=json_encoder)
+    )
 
 
 def format_search_results(

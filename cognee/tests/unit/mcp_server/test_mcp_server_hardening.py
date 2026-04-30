@@ -36,7 +36,7 @@ def test_parse_cognify_data_accepts_json_batch():
     assert parsed.is_batch is True
 
 
-@pytest.mark.parametrize("payload", ["[]", "[1]", "[\"\"]", "[1, 2]"])
+@pytest.mark.parametrize("payload", ["[]", "[1]", '[""]', "[1, 2]"])
 def test_parse_cognify_data_rejects_invalid_batches(payload):
     with pytest.raises(ValueError):
         parse_cognify_data(payload)
