@@ -1,5 +1,5 @@
 import inspect
-from io import BytesIO
+from tempfile import SpooledTemporaryFile
 from types import SimpleNamespace
 from uuid import UUID
 from typing import Union, BinaryIO, List, Optional, Any
@@ -76,7 +76,8 @@ async def _materialize_stream_for_background(data_item: Any, index: int = 0) -> 
         return data_item
 
     payload = await _read_stream_bytes(stream)
-    buffer = BytesIO(payload)
+    buffer = SpooledTemporaryFile(mode="w+b")
+    buffer.write(payload)
     buffer.seek(0)
 
     filename = _normalize_filename(

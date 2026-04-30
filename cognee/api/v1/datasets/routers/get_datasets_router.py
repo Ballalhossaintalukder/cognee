@@ -382,9 +382,18 @@ def get_datasets_router() -> APIRouter:
 
         ## Query Parameters
         - **dataset** (List[UUID]): List of dataset UUIDs to check status for
+        - **pipeline** (List[str], optional): One or more pipeline names to check.
+          - If omitted, defaults to **cognify_pipeline** (backward-compatible behavior)
+          - If one pipeline is provided, response is a flat map
+          - If multiple pipelines are provided, response is nested per dataset and pipeline
+          - **Available options: add_pipeline, cognify_pipeline**
 
         ## Response
-        Returns a dictionary mapping dataset IDs to their processing status:
+        Returns status information in one of two shapes:
+        - Single pipeline (default): {dataset_id: status}
+        - Multiple pipelines: {dataset_id: {pipeline_name: status}}
+
+        Status values:
         - **pending**: Dataset is queued for processing
         - **running**: Dataset is currently being processed
         - **completed**: Dataset processing completed successfully
