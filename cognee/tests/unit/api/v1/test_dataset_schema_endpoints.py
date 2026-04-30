@@ -1,6 +1,5 @@
 """Tests for dataset schema endpoints and related utilities."""
 
-import json
 import pytest
 from uuid import uuid4
 
@@ -102,70 +101,37 @@ def test_dataset_schema_payload_dto_validation():
     assert dto_empty.custom_prompt is None
 
 
-# ── _extract_json tests ──────────────────────────────────────────────────
+def test_inferred_graph_schema_dto_accepts_json_schema_shape():
+    """Verify InferredGraphSchemaDTO accepts required fields and $defs alias."""
+    from cognee.api.v1.llm.routers.get_llm_router import InferredGraphSchemaDTO
 
-
-_SAMPLE_SCHEMA = {
-    "title": "CompanyGraph",
-    "type": "object",
-    "properties": {"name": {"type": "string"}},
-    "required": ["name"],
-    "$defs": {
-        "Person": {
-            "title": "Person",
+    dto = InferredGraphSchemaDTO.model_validate(
+        {
+            "title": "CompanyGraph",
             "type": "object",
             "properties": {"name": {"type": "string"}},
             "required": ["name"],
+            "$defs": {
+                "Person": {
+                    "title": "Person",
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}},
+                    "required": ["name"],
+                }
+            },
+            "additional_json_schema_keyword": True,
         }
-    },
-}
+    )
 
-_SAMPLE_JSON = json.dumps(_SAMPLE_SCHEMA)
+    dumped = dto.model_dump(by_alias=True)
+    assert dumped["$defs"]["Person"]["title"] == "Person"
+    assert dumped["additional_json_schema_keyword"] is True
 
 
-class TestExtractJson:
-    """Verify _extract_json handles the various formats LLMs return."""
+def test_inferred_graph_schema_dto_requires_core_fields():
+    """Verify InferredGraphSchemaDTO enforces title/type/properties fields."""
+    from pydantic import ValidationError
+    from cognee.api.v1.llm.routers.get_llm_router import InferredGraphSchemaDTO
 
-    @staticmethod
-    def _extract(raw: str) -> dict:
-        from cognee.api.v1.llm.routers.get_llm_router import _extract_json
-        return _extract_json(raw)
-
-    def test_clean_json(self):
-        """Parse clean JSON directly."""
-        assert self._extract(_SAMPLE_JSON) == _SAMPLE_SCHEMA
-
-    def test_whitespace_padding(self):
-        """Parse JSON with leading/trailing whitespace and newlines."""
-        assert self._extract(f"  \n\n  {_SAMPLE_JSON}  \n  ") == _SAMPLE_SCHEMA
-
-    def test_markdown_fences_with_lang(self):
-        """Strip ```json ... ``` markdown fences."""
-        wrapped = f"```json\n{_SAMPLE_JSON}\n```"
-        assert self._extract(wrapped) == _SAMPLE_SCHEMA
-
-    def test_markdown_fences_without_lang(self):
-        """Strip ``` ... ``` fences without language tag."""
-        wrapped = f"```\n{_SAMPLE_JSON}\n```"
-        assert self._extract(wrapped) == _SAMPLE_SCHEMA
-
-    def test_surrounding_text(self):
-        """Extract JSON when LLM adds explanation around it."""
-        wrapped = f"Here is the schema:\n\n{_SAMPLE_JSON}\n\nThis covers all entities."
-        assert self._extract(wrapped) == _SAMPLE_SCHEMA
-
-    def test_markdown_fences_with_surrounding_text(self):
-        """Handle fences plus explanation text."""
-        wrapped = f"Sure! Here is the schema:\n\n```json\n{_SAMPLE_JSON}\n```\n\nLet me know if you need changes."
-        assert self._extract(wrapped) == _SAMPLE_SCHEMA
-
-    @pytest.mark.parametrize("raw", ["", "   \n\n  ", None])
-    def test_empty_input_raises(self, raw):
-        """Raise JSONDecodeError on empty / whitespace-only / None input."""
-        with pytest.raises(json.JSONDecodeError, match="empty output"):
-            self._extract(raw)
-
-    def test_no_json_raises(self):
-        """Raise JSONDecodeError when there is no JSON at all."""
-        with pytest.raises(json.JSONDecodeError, match="Could not extract"):
-            self._extract("I could not generate a schema for this input.")
+    with pytest.raises(ValidationError):
+        InferredGraphSchemaDTO.model_validate({"type": "object", "properties": {}})
