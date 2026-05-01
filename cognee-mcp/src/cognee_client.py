@@ -19,6 +19,11 @@ try:
 except ImportError:
     from server_utils import normalize_delete_mode
 
+try:
+    from .retrieval_utils import get_chunk_neighbors_from_graph, get_document_from_graph
+except ImportError:
+    from retrieval_utils import get_chunk_neighbors_from_graph, get_document_from_graph
+
 logger = get_logger()
 
 
@@ -388,6 +393,50 @@ class CogneeClient:
                     {"id": str(d.id), "name": d.name, "created_at": str(d.created_at)}
                     for d in datasets
                 ]
+
+    async def get_document(
+        self,
+        document_id: str,
+        include_metadata: bool = True,
+        max_chunks: int = 0,
+    ) -> Dict[str, Any]:
+        """Retrieve a full document with its chunks from the graph database."""
+        if self.use_api:
+            raise NotImplementedError("get_document is not available in API mode")
+
+        from cognee.infrastructure.databases.unified import get_unified_engine
+
+        with redirect_stdout(sys.stderr):
+            unified = await get_unified_engine()
+            return await get_document_from_graph(
+                unified.graph,
+                document_id,
+                include_metadata=include_metadata,
+                max_chunks=max_chunks,
+            )
+
+    async def get_chunk_neighbors(
+        self,
+        chunk_id: str,
+        neighbor_count: int = 2,
+        include_target: bool = True,
+        direction: str = "both",
+    ) -> Dict[str, Any]:
+        """Retrieve neighboring chunks around a target chunk from its parent document."""
+        if self.use_api:
+            raise NotImplementedError("get_chunk_neighbors is not available in API mode")
+
+        from cognee.infrastructure.databases.unified import get_unified_engine
+
+        with redirect_stdout(sys.stderr):
+            unified = await get_unified_engine()
+            return await get_chunk_neighbors_from_graph(
+                unified.graph,
+                chunk_id,
+                neighbor_count=neighbor_count,
+                include_target=include_target,
+                direction=direction,
+            )
 
     # -- V2 API methods -----------------------------------------------------
 

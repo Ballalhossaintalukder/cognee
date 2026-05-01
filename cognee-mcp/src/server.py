@@ -685,6 +685,94 @@ async def search(
 
 
 @mcp.tool()
+@log_usage(function_name="MCP get_document", log_type="mcp_tool")
+async def get_document(
+    document_id: str,
+    include_metadata: bool = True,
+    max_chunks: int = 0,
+) -> list:
+    """
+    Retrieve a complete source document and its chunks from the knowledge graph.
+
+    Use this after a CHUNKS search or list_data lookup when you need the full source
+    context around a result. If a chunk ID is provided instead of a document ID, the
+    tool resolves the chunk's parent document and returns that document.
+
+    Parameters
+    ----------
+    document_id : str
+        Document ID to retrieve. A DocumentChunk ID is also accepted and resolves to
+        its parent document.
+    include_metadata : bool
+        Include document metadata fields in the response (default: True).
+    max_chunks : int
+        Maximum chunks to return. Use 0 to return all chunks.
+    """
+    with redirect_stdout(sys.stderr):
+        try:
+            result = await cognee_client.get_document(
+                document_id=document_id,
+                include_metadata=include_metadata,
+                max_chunks=max_chunks,
+            )
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2, cls=JSONEncoder),
+                )
+            ]
+        except Exception as e:
+            error_msg = f"get_document failed: {str(e)}"
+            logger.error(error_msg)
+            return [types.TextContent(type="text", text=f"Error: {error_msg}")]
+
+
+@mcp.tool()
+@log_usage(function_name="MCP get_chunk_neighbors", log_type="mcp_tool")
+async def get_chunk_neighbors(
+    chunk_id: str,
+    neighbor_count: int = 2,
+    include_target: bool = True,
+    direction: str = "both",
+) -> list:
+    """
+    Retrieve neighboring chunks around a target chunk from the same document.
+
+    Use this after a CHUNKS search when the matching passage is too narrow and you
+    need local narrative context. Chunks are returned in reading order.
+
+    Parameters
+    ----------
+    chunk_id : str
+        Target DocumentChunk ID.
+    neighbor_count : int
+        Number of neighboring chunks to retrieve on each side. Must be 1-10.
+    include_target : bool
+        Include the target chunk in the returned chunk list (default: True).
+    direction : str
+        One of "both", "forward", or "backward".
+    """
+    with redirect_stdout(sys.stderr):
+        try:
+            result = await cognee_client.get_chunk_neighbors(
+                chunk_id=chunk_id,
+                neighbor_count=neighbor_count,
+                include_target=include_target,
+                direction=direction,
+            )
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2, cls=JSONEncoder),
+                )
+            ]
+        except Exception as e:
+            error_msg = f"get_chunk_neighbors failed: {str(e)}"
+            logger.error(error_msg)
+            return [types.TextContent(type="text", text=f"Error: {error_msg}")]
+
+
+@mcp.tool()
 @log_usage(function_name="MCP list_data", log_type="mcp_tool")
 async def list_data(dataset_id: str = None) -> list:
     """

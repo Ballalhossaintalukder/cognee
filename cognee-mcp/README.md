@@ -466,6 +466,8 @@ Some features are only available in direct mode:
 - `prune` (data reset)
 - `get_developer_rules` (developer rules retrieval)
 - `list_data` with specific dataset_id (detailed data listing)
+- `get_document` (full document retrieval)
+- `get_chunk_neighbors` (neighboring chunk retrieval)
 
 Basic operations like `cognify`, `search`, `delete`, and `list_data` (all datasets) work in both modes.
 
@@ -490,6 +492,8 @@ The MCP server exposes its functionality through tools. Call them from any MCP c
 - **save_interaction**: Logs user-agent interactions and query-answer pairs
 - **delete**: Delete specific data from a dataset (supports soft/hard deletion modes)
 - **list_data**: List all datasets and their data items with IDs for deletion operations
+- **get_document**: Retrieve a complete document and its chunks by document ID or chunk ID
+- **get_chunk_neighbors**: Retrieve surrounding chunks by chunk ID for local source context
 - **prune**: Reset cognee for a fresh start (removes all data)
 - **cognify_status / codify_status**: Track pipeline progress
 - **cognee_add_developer_rules**: Ingest core developer rule files into memory
@@ -508,6 +512,21 @@ delete(data_id="data-uuid", dataset_id="dataset-uuid", mode="soft")
 
 # Delete specific data (hard deletion - removes orphaned entities)
 delete(data_id="data-uuid", dataset_id="dataset-uuid", mode="hard")
+```
+
+**Document Retrieval Examples:**
+```bash
+# Retrieve a complete document with all chunks
+get_document(document_id="document-uuid", include_metadata=True)
+
+# Retrieve the parent document from a chunk ID returned by CHUNKS search
+get_document(document_id="chunk-uuid", max_chunks=20)
+
+# Retrieve two chunks before and after the target chunk
+get_chunk_neighbors(chunk_id="chunk-uuid", neighbor_count=2, include_target=True)
+
+# Continue reading forward without repeating the target chunk
+get_chunk_neighbors(chunk_id="chunk-uuid", neighbor_count=3, include_target=False, direction="forward")
 ```
 
 

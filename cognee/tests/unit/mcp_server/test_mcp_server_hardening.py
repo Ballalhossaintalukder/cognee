@@ -14,12 +14,15 @@ if str(MCP_ROOT) not in sys.path:
 
 CogneeClient = importlib.import_module("src.cognee_client").CogneeClient
 server_utils = importlib.import_module("src.server_utils")
+retrieval_utils = importlib.import_module("src.retrieval_utils")
 format_recall_results = server_utils.format_recall_results
 format_search_results = server_utils.format_search_results
 normalize_delete_mode = server_utils.normalize_delete_mode
 parse_cognify_data = server_utils.parse_cognify_data
 validate_cognify_file_paths = server_utils.validate_cognify_file_paths
 validate_top_k = server_utils.validate_top_k
+get_chunk_neighbors_from_graph = retrieval_utils.get_chunk_neighbors_from_graph
+get_document_from_graph = retrieval_utils.get_document_from_graph
 
 
 def test_parse_cognify_data_accepts_plain_text():
@@ -234,3 +237,180 @@ async def test_cognify_tool_batches_add_calls(monkeypatch, tmp_path):
         "custom_prompt": "extract carefully",
         "graph_model": None,
     }
+
+
+class FakeGraph:
+    def __init__(self, nodes=None, connections=None, subgraphs=None):
+        self.nodes = nodes or {}
+        self.connections = connections or {}
+        self.subgraphs = subgraphs or {}
+
+    async def get_node(self, node_id):
+        return self.nodes.get(node_id)
+
+    async def get_connections(self, node_id):
+        return self.connections.get(node_id, [])
+
+    async def get_document_subgraph(self, document_id):
+        return self.subgraphs.get(document_id)
+
+
+def _document_node():
+    return {
+        "id": "doc-1",
+        "name": "Guide",
+        "type": "TextDocument",
+        "raw_data_location": "/tmp/guide.txt",
+        "mime_type": "text/plain",
+    }
+
+
+def _chunk_node(chunk_id, index, text):
+    return {
+        "id": chunk_id,
+        "type": "DocumentChunk",
+        "chunk_index": index,
+        "text": text,
+        "chunk_size": len(text.split()),
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_document_from_graph_uses_subgraph_sorts_and_truncates():
+    graph = FakeGraph(
+        subgraphs={
+            "doc-1": {
+                "document": [_document_node()],
+                "chunks": [
+                    _chunk_node("chunk-2", 2, "third"),
+                    _chunk_node("chunk-0", 0, "first"),
+                    _chunk_node("chunk-1", 1, "second"),
+                ],
+            }
+        }
+    )
+
+    result = await get_document_from_graph(
+        graph,
+        "doc-1",
+        include_metadata=True,
+        max_chunks=2,
+    )
+
+    assert result["document_id"] == "doc-1"
+    assert result["chunk_count"] == 2
+    assert result["total_chunks"] == 3
+    assert result["is_truncated"] is True
+    assert [chunk["chunk_id"] for chunk in result["chunks"]] == ["chunk-0", "chunk-1"]
+    assert result["metadata"]["raw_data_location"] == "/tmp/guide.txt"
+
+
+@pytest.mark.asyncio
+async def test_get_document_from_graph_accepts_chunk_id_via_connections():
+    document = _document_node()
+    chunks = [
+        _chunk_node("chunk-0", 0, "first"),
+        _chunk_node("chunk-1", 1, "second"),
+    ]
+    edge = {"relationship_name": "is_part_of"}
+    graph = FakeGraph(
+        nodes={"doc-1": document, "chunk-1": chunks[1]},
+        connections={
+            "chunk-1": [(chunks[1], edge, document)],
+            "doc-1": [(chunks[0], edge, document), (chunks[1], edge, document)],
+        },
+    )
+
+    result = await get_document_from_graph(graph, "chunk-1", include_metadata=False)
+
+    assert result["document_id"] == "doc-1"
+    assert result["name"] == "Guide"
+    assert "metadata" not in result
+    assert [chunk["chunk_id"] for chunk in result["chunks"]] == ["chunk-0", "chunk-1"]
+
+
+@pytest.mark.asyncio
+async def test_get_chunk_neighbors_from_graph_filters_direction_and_target():
+    document = _document_node()
+    chunks = [
+        _chunk_node("chunk-0", 0, "first"),
+        _chunk_node("chunk-1", 1, "second"),
+        _chunk_node("chunk-2", 2, "third"),
+        _chunk_node("chunk-3", 3, "fourth"),
+    ]
+    edge = {"relationship_name": "is_part_of"}
+    graph = FakeGraph(
+        nodes={"doc-1": document, "chunk-1": chunks[1]},
+        connections={
+            "chunk-1": [(chunks[1], edge, document)],
+            "doc-1": [(chunk, edge, document) for chunk in chunks],
+        },
+    )
+
+    result = await get_chunk_neighbors_from_graph(
+        graph,
+        "chunk-1",
+        neighbor_count=1,
+        include_target=False,
+        direction="both",
+    )
+
+    assert result["document_id"] == "doc-1"
+    assert result["target_chunk_index"] == 1
+    assert [chunk["chunk_id"] for chunk in result["chunks"]] == ["chunk-0", "chunk-2"]
+    assert all(chunk["is_target"] is False for chunk in result["chunks"])
+
+
+@pytest.mark.asyncio
+async def test_get_chunk_neighbors_from_graph_validates_inputs():
+    graph = FakeGraph()
+
+    with pytest.raises(ValueError, match="neighbor_count"):
+        await get_chunk_neighbors_from_graph(graph, "chunk-1", neighbor_count=11)
+
+    with pytest.raises(ValueError, match="direction"):
+        await get_chunk_neighbors_from_graph(graph, "chunk-1", direction="sideways")
+
+
+@pytest.mark.asyncio
+async def test_document_retrieval_tools_format_json(monkeypatch):
+    import src.server as server
+
+    class FakeClient:
+        async def get_document(self, document_id, include_metadata=True, max_chunks=0):
+            return {
+                "document_id": document_id,
+                "include_metadata": include_metadata,
+                "max_chunks": max_chunks,
+                "chunks": [],
+            }
+
+        async def get_chunk_neighbors(
+            self,
+            chunk_id,
+            neighbor_count=2,
+            include_target=True,
+            direction="both",
+        ):
+            return {
+                "target_chunk_id": chunk_id,
+                "neighbor_count": neighbor_count,
+                "include_target": include_target,
+                "direction": direction,
+                "chunks": [],
+            }
+
+    monkeypatch.setattr(server, "cognee_client", FakeClient())
+
+    document_result = await server.get_document("doc-1", include_metadata=False, max_chunks=3)
+    neighbors_result = await server.get_chunk_neighbors(
+        "chunk-1",
+        neighbor_count=1,
+        include_target=False,
+        direction="forward",
+    )
+
+    assert json.loads(document_result[0].text)["document_id"] == "doc-1"
+    neighbor_payload = json.loads(neighbors_result[0].text)
+    assert neighbor_payload["target_chunk_id"] == "chunk-1"
+    assert neighbor_payload["direction"] == "forward"
