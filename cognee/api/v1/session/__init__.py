@@ -11,4 +11,11 @@ session = types.SimpleNamespace(
     delete_feedback=delete_feedback,
 )
 
-__all__ = ["get_session", "add_feedback", "add_frequency_weights", "delete_feedback", "session", "SessionQAEntry"]
+__all__ = [
+    "get_session",
+    "add_feedback",
+    "add_frequency_weights",
+    "delete_feedback",
+    "session",
+    "SessionQAEntry",
+]

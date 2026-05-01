@@ -132,9 +132,9 @@ async def add_frequency_weights(
     user_id = str(resolved_user.id)
 
     used_graph_element_ids: dict[str, list[str]] = {}
-    if node_ids is not None:
+    if node_ids:
         used_graph_element_ids["node_ids"] = node_ids
-    if edge_ids is not None:
+    if edge_ids:
         used_graph_element_ids["edge_ids"] = edge_ids
 
     try:
