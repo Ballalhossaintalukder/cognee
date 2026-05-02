@@ -2,7 +2,6 @@ import re
 from typing import Annotated, Literal
 from uuid import UUID
 
-from debugpy.adapter.sessions import Session
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict, Unpack
 
