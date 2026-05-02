@@ -7,6 +7,7 @@ This module provides a unified interface for interacting with Cognee, supporting
 """
 
 import sys
+import hashlib
 from typing import Optional, Any, List, Dict
 from uuid import UUID
 from contextlib import redirect_stdout
@@ -96,6 +97,13 @@ class CogneeClient:
             return parsed
         return {"status": "success", "result": parsed}
 
+    @staticmethod
+    def _text_upload(data: Any) -> Dict[str, tuple[str, str, str]]:
+        """Create a content-addressed text upload for API-mode ingestion."""
+        content = str(data)
+        digest = hashlib.md5(content.encode("utf-8")).hexdigest()
+        return {"data": (f"text_{digest}.txt", content, "text/plain")}
+
     async def add(
         self, data: Any, dataset_name: str = "main_dataset", node_set: Optional[List[str]] = None
     ) -> Dict[str, Any]:
@@ -119,7 +127,7 @@ class CogneeClient:
         if self.use_api:
             endpoint = f"{self.api_url}/api/v1/add"
 
-            files = {"data": ("data.txt", str(data), "text/plain")}
+            files = self._text_upload(data)
             form_data = {
                 "datasetName": dataset_name,
             }
@@ -454,7 +462,7 @@ class CogneeClient:
         """
         if self.use_api:
             endpoint = f"{self.api_url}/api/v1/remember"
-            files = {"data": ("data.txt", str(data), "text/plain")}
+            files = self._text_upload(data)
             form_data = {"datasetName": dataset_name}
             if session_id:
                 form_data["session_id"] = session_id

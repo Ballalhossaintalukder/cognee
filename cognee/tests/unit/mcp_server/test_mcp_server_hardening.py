@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import importlib
 import json
 import sys
@@ -113,6 +114,32 @@ def test_format_recall_results_handles_normalized_rows():
 
 
 @pytest.mark.asyncio
+async def test_cognee_client_api_add_uses_content_addressed_filename():
+    requests: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"status": "ok"})
+
+    client = CogneeClient(api_url="http://cognee.local")
+    await client.client.aclose()
+    client.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+    content = "first memory"
+    digest = hashlib.md5(content.encode("utf-8")).hexdigest()
+
+    try:
+        await client.add(content, dataset_name="ds")
+    finally:
+        await client.close()
+
+    assert requests[0].url.path == "/api/v1/add"
+    body = requests[0].content.decode()
+    assert f'filename="text_{digest}.txt"' in body
+    assert "data.txt" not in body
+
+
+@pytest.mark.asyncio
 async def test_cognee_client_api_remember_sends_session_id():
     requests: list[httpx.Request] = []
 
@@ -124,13 +151,18 @@ async def test_cognee_client_api_remember_sends_session_id():
     await client.client.aclose()
     client.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
+    content = "hello"
+    digest = hashlib.md5(content.encode("utf-8")).hexdigest()
+
     try:
-        await client.remember("hello", dataset_name="ds", session_id="session-1")
+        await client.remember(content, dataset_name="ds", session_id="session-1")
     finally:
         await client.close()
 
     assert requests[0].url.path == "/api/v1/remember"
     body = requests[0].content.decode()
+    assert f'filename="text_{digest}.txt"' in body
+    assert "data.txt" not in body
     assert 'name="session_id"' in body
     assert "session-1" in body
 
