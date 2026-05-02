@@ -210,7 +210,6 @@ async def health_check(request):
     return JSONResponse({"status": "ok"})
 
 
-@mcp.tool()
 @log_usage(function_name="MCP cognify", log_type="mcp_tool")
 async def cognify(
     data: str,
@@ -321,7 +320,7 @@ async def cognify(
     -----
     - The function launches a background task and returns immediately
     - The actual cognify process may take significant time depending on text length
-    - Use the cognify_status tool to check the progress of the operation
+    - Check the log file for progress
 
     """
 
@@ -404,8 +403,7 @@ async def cognify(
     text = (
         f"Background process launched due to MCP timeout limitations.\n"
         f"Queued {len(parsed_data.items)} item(s) for dataset '{dataset_name}'.\n"
-        f"To check current cognify status use the cognify_status tool\n"
-        f"or check the log file at: {log_file}"
+        f"Check the log file at: {log_file}"
     )
 
     return [
@@ -416,9 +414,6 @@ async def cognify(
     ]
 
 
-@mcp.tool(
-    name="save_interaction", description="Logs user-agent interactions and query-answer pairs"
-)
 @log_usage(function_name="MCP save_interaction", log_type="mcp_tool")
 async def save_interaction(data: str) -> list:
     """
@@ -485,7 +480,7 @@ async def save_interaction(data: str) -> list:
     log_file = get_log_file_location()
     text = (
         f"Background process launched to process the user-agent interaction.\n"
-        f"To check the current status, use the cognify_status tool or check the log file at: {log_file}"
+        f"Check the log file at: {log_file}"
     )
 
     return [
@@ -496,7 +491,6 @@ async def save_interaction(data: str) -> list:
     ]
 
 
-@mcp.tool()
 @log_usage(function_name="MCP search", log_type="mcp_tool")
 async def search(
     search_query: str, search_type: str, top_k: int = 10, datasets: str = None
@@ -684,7 +678,6 @@ async def search(
     return [types.TextContent(type="text", text=search_results)]
 
 
-@mcp.tool()
 @log_usage(function_name="MCP get_document", log_type="mcp_tool")
 async def get_document(
     document_id: str,
@@ -727,7 +720,6 @@ async def get_document(
             return [types.TextContent(type="text", text=f"Error: {error_msg}")]
 
 
-@mcp.tool()
 @log_usage(function_name="MCP get_chunk_neighbors", log_type="mcp_tool")
 async def get_chunk_neighbors(
     chunk_id: str,
@@ -772,7 +764,6 @@ async def get_chunk_neighbors(
             return [types.TextContent(type="text", text=f"Error: {error_msg}")]
 
 
-@mcp.tool()
 @log_usage(function_name="MCP list_data", log_type="mcp_tool")
 async def list_data(dataset_id: str = None) -> list:
     """
@@ -901,7 +892,6 @@ async def list_data(dataset_id: str = None) -> list:
             return [types.TextContent(type="text", text=error_msg)]
 
 
-@mcp.tool()
 @log_usage(function_name="MCP delete_dataset", log_type="mcp_tool")
 async def delete_dataset(dataset_name: str) -> list:
     """
@@ -961,7 +951,6 @@ async def delete_dataset(dataset_name: str) -> list:
             return [types.TextContent(type="text", text=f"Error deleting dataset: {str(e)}")]
 
 
-@mcp.tool()
 @log_usage(function_name="MCP delete", log_type="mcp_tool")
 async def delete(data_id: str, dataset_id: str, mode: str = "soft") -> list:
     """
@@ -1041,7 +1030,6 @@ async def delete(data_id: str, dataset_id: str, mode: str = "soft") -> list:
             return [types.TextContent(type="text", text=error_msg)]
 
 
-@mcp.tool()
 @log_usage(function_name="MCP prune", log_type="mcp_tool")
 async def prune():
     """
@@ -1079,7 +1067,7 @@ async def prune():
 
 
 # ---------------------------------------------------------------------------
-# Session-aware memory operations (remember, recall, forget, improve)
+# Session-aware memory operations (remember, recall, forget)
 # ---------------------------------------------------------------------------
 
 
@@ -1099,8 +1087,8 @@ async def remember(
     pipeline to ingest data and build the knowledge graph.
 
     With session_id (session memory): Stores the data in the session
-    cache only. Fast, no entity extraction. Use improve() later to
-    sync session content into the permanent graph.
+    cache only. Fast, no entity extraction. Omit session_id when the
+    content should be stored as permanent graph memory.
 
     Parameters
     ----------
@@ -1191,7 +1179,7 @@ async def recall(
 
 @mcp.tool()
 @log_usage(function_name="MCP forget", log_type="mcp_tool")
-async def forget_memory(
+async def forget(
     dataset: str = None,
     everything: bool = False,
 ) -> list:
@@ -1229,7 +1217,6 @@ async def forget_memory(
             return [types.TextContent(type="text", text=f"Error: {error_msg}")]
 
 
-@mcp.tool()
 @log_usage(function_name="MCP improve", log_type="mcp_tool")
 async def improve(
     dataset_name: str = "main_dataset",
@@ -1279,7 +1266,6 @@ async def improve(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
 @log_usage(function_name="MCP cognify_status", log_type="mcp_tool")
 async def cognify_status(dataset_name: str = "main_dataset") -> list:
     """

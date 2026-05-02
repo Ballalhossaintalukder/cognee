@@ -114,6 +114,15 @@ def test_format_recall_results_handles_normalized_rows():
 
 
 @pytest.mark.asyncio
+async def test_mcp_exposes_only_memory_tools():
+    import src.server as server
+
+    tools = await server.mcp.list_tools()
+
+    assert {tool.name for tool in tools} == {"remember", "recall", "forget"}
+
+
+@pytest.mark.asyncio
 async def test_cognee_client_api_add_uses_content_addressed_filename():
     requests: list[httpx.Request] = []
 
