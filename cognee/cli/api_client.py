@@ -3,7 +3,7 @@
 When ``--api-url`` is supplied (e.g. ``--api-url http://localhost:8000``),
 every CLI command is forwarded as an HTTP request to the server instead of
 being executed in-process.  This avoids file-based database locking issues
-(SQLite, KuzuDB, LanceDB) that arise when multiple CLI processes try to
+(SQLite, Ladybug, LanceDB) that arise when multiple CLI processes try to
 access the same files concurrently.
 
 The single API server process owns all database connections and serialises

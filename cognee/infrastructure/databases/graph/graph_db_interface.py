@@ -352,7 +352,7 @@ class GraphDBInterface(ABC):
         """Retrieve a batch of triplets (source, edge, target).
 
         Optional extension — implemented by PostgresAdapter, Neo4jAdapter,
-        and KuzuAdapter but not NeptuneGraphDB.
+        and LadybugAdapter but not NeptuneGraphDB.
 
         Parameters
         ----------

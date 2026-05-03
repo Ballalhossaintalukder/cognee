@@ -19,14 +19,14 @@ logger = get_logger()
 
 @pytest.mark.asyncio
 @patch.object(LLMGateway, "acreate_structured_output", new_callable=AsyncMock)
-async def main(mock_create_structured_output: AsyncMock):
+async def test_delete_dataset_ladybug(mock_create_structured_output: AsyncMock):
     data_directory_path = os.path.join(
-        pathlib.Path(__file__).parent, ".data_storage/test_delete_dataset_kuzu"
+        pathlib.Path(__file__).parent, ".data_storage/test_delete_dataset_ladybug"
     )
     cognee.config.data_root_directory(data_directory_path)
 
     cognee_directory_path = os.path.join(
-        pathlib.Path(__file__).parent, ".cognee_system/test_delete_dataset_kuzu"
+        pathlib.Path(__file__).parent, ".cognee_system/test_delete_dataset_ladybug"
     )
     cognee.config.system_root_directory(cognee_directory_path)
 
@@ -217,4 +217,4 @@ async def main(mock_create_structured_output: AsyncMock):
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(main())
+    asyncio.run(test_delete_dataset_ladybug())

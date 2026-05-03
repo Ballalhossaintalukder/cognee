@@ -7,19 +7,19 @@ from cognee.modules.search.types import SearchType
 
 async def main():
     """
-    Example script demonstrating how to use Cognee with KuzuDB
+    Example script demonstrating how to use Cognee with Ladybug
 
     This example:
-    1. Configures Cognee to use KuzuDB as graph database
+    1. Configures Cognee to use Ladybug as graph database
     2. Sets up data directories
     3. Adds sample data to Cognee
     4. Processes (cognifies) the data
     5. Performs different types of searches
     """
-    # Configure KuzuDB as the graph database provider
+    # Configure Ladybug as the graph database provider
     cognee.config.set_graph_db_config(
         {
-            "graph_database_provider": "kuzu",  # Specify KuzuDB as provider
+            "graph_database_provider": "ladybug",  # Specify Ladybug as provider
         }
     )
 
@@ -37,14 +37,14 @@ async def main():
     await cognee.prune.prune_system(metadata=True)
 
     # Create a dataset
-    dataset_name = "kuzu_example"
+    dataset_name = "ladybug_example"
 
     # Add sample text to the dataset
-    sample_text = """KuzuDB is a graph database system optimized for running complex graph analytics.
+    sample_text = """Ladybug is a graph database system optimized for running complex graph analytics.
     It is designed to be a high-performance graph database for data science workloads.
-    KuzuDB is built with modern hardware optimizations in mind.
+    Ladybug is built with modern hardware optimizations in mind.
     It provides support for property graphs and offers a Cypher-like query language.
-    KuzuDB can handle both transactional and analytical graph workloads.
+    Ladybug can handle both transactional and analytical graph workloads.
     The database now includes vector search capabilities for AI applications and semantic search."""
 
     # Add the sample text to the dataset
@@ -54,11 +54,11 @@ async def main():
     await cognee.cognify([dataset_name])
 
     # Now let's perform some searches
-    # 1. Search for insights related to "KuzuDB"
+    # 1. Search for insights related to "Ladybug"
     insights_results = await cognee.search(
-        query_type=SearchType.GRAPH_COMPLETION, query_text="KuzuDB"
+        query_type=SearchType.GRAPH_COMPLETION, query_text="Ladybug"
     )
-    print("\nInsights about KuzuDB:")
+    print("\nInsights about Ladybug:")
     for result in insights_results:
         print(f"- {result}")
 

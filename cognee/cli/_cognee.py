@@ -333,7 +333,7 @@ def main() -> int:
 
     # When --api-url is set, delegate to the API server instead of running
     # in-process.  This is the correct mode for concurrent / multi-agent use
-    # with file-based databases (SQLite, KuzuDB, LanceDB).
+    # with file-based databases (SQLite, Ladybug, LanceDB).
     from cognee.cli.api_dispatch import can_dispatch, dispatch as api_dispatch
 
     if can_dispatch(args) and args.command:

@@ -11,7 +11,7 @@ from cognee.infrastructure.databases.cache.models import SessionAgentTraceEntry,
 from cognee.infrastructure.databases.exceptions.exceptions import (
     CacheConnectionError,
     SessionQAEntryValidationError,
-    SharedKuzuLockRequiresRedisError,
+    SharedLadybugLockRequiresRedisError,
 )
 from cognee.infrastructure.files.storage.get_storage_config import get_storage_config
 from cognee.shared.logging_utils import get_logger
@@ -178,15 +178,15 @@ class FSCacheAdapter(CacheDBInterface):
 
     def acquire_lock(self):
         """Lock acquisition is not available for filesystem cache backend."""
-        message = "Shared Kuzu lock requires Redis cache backend."
+        message = "Shared Ladybug lock requires Redis cache backend."
         logger.error(message)
-        raise SharedKuzuLockRequiresRedisError()
+        raise SharedLadybugLockRequiresRedisError()
 
     def release_lock(self):
         """Lock release is not available for filesystem cache backend."""
-        message = "Shared Kuzu lock requires Redis cache backend."
+        message = "Shared Ladybug lock requires Redis cache backend."
         logger.error(message)
-        raise SharedKuzuLockRequiresRedisError()
+        raise SharedLadybugLockRequiresRedisError()
 
     async def create_qa_entry(
         self,

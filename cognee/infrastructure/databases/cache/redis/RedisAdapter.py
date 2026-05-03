@@ -223,7 +223,7 @@ class RedisAdapter(CacheDBInterface):
 
     def acquire_lock(self):
         """
-        Acquire the Redis lock manually. Raises if acquisition fails. (Sync because of Kuzu)
+        Acquire the Redis lock manually. Raises if acquisition fails. (Sync because of Ladybug)
         """
         self.lock = self.sync_redis.lock(
             name=self.lock_key,
@@ -239,7 +239,7 @@ class RedisAdapter(CacheDBInterface):
 
     def release_lock(self):
         """
-        Release the Redis lock manually, if held. (Sync because of Kuzu)
+        Release the Redis lock manually, if held. (Sync because of Ladybug)
         """
         if self.lock:
             try:
@@ -251,7 +251,7 @@ class RedisAdapter(CacheDBInterface):
     @contextmanager
     def hold_lock(self):
         """
-        Context manager for acquiring and releasing the Redis lock automatically. (Sync because of Kuzu)
+        Context manager for acquiring and releasing the Redis lock automatically. (Sync because of Ladybug)
         """
         self.acquire()
         try:
