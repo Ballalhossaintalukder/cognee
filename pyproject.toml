@@ -238,6 +238,12 @@ constraint-dependencies = [
     # Python 3.14 release path keeps a wheel available. Pulled transitively
     # via unstructured.
     "spacy<3.8.14 ; python_version >= '3.14'",
+    # scipy cp314 wheels start at 1.16.1; 1.16+ also dropped cp310, so the
+    # resolver collapses <3.11 and >=3.14 onto the latest cp310-compatible
+    # version (1.15.3) by default — which has no cp314 wheel. Force 3.14 to
+    # use 1.16.1+ so the wheel-only release sync succeeds. Pulled
+    # transitively via pandas / scikit-learn / fastembed.
+    "scipy>=1.16.1 ; python_version >= '3.14'",
 ]
 
 [tool.ruff]
