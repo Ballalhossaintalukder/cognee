@@ -7,7 +7,7 @@ import asyncio
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from cognee.modules.data.methods.get_datasets_by_name import get_datasets_by_name
 from cognee.modules.data.methods.get_last_added_data import get_last_added_data
 from cognee.modules.users.methods import get_default_user
@@ -626,17 +626,41 @@ async def search(
             # text_vector contains raw floats (~92KB per result), useless for clients
             search_results = strip_vectors(search_results)
 
+            def _combine_completion_results(results):
+                """Combine results from all datasets instead of returning only the first.
+
+                Each result may be a dict (from _backwards_compatible_search_results)
+                or a SearchResult object. Results are labeled with their dataset name
+                so users can distinguish which dataset each answer came from.
+                """
+                if not isinstance(results, list) or len(results) == 0:
+                    return str(results)
+                combined = []
+                for sr in results:
+                    if isinstance(sr, dict):
+                        ds_name = sr.get("dataset_name", "unknown")
+                        sr_content = sr.get("search_result", str(sr))
+                    elif hasattr(sr, "dataset_name") and hasattr(sr, "search_result"):
+                        ds_name = sr.dataset_name or "unknown"
+                        sr_content = sr.search_result
+                    else:
+                        combined.append(str(sr))
+                        continue
+                    if isinstance(sr_content, list):
+                        for item in sr_content:
+                            combined.append(f"[{ds_name}] {item}")
+                    else:
+                        combined.append(f"[{ds_name}] {sr_content}")
+                return "\n\n".join(combined)
+
             # Handle different result formats based on API vs direct mode
             if cognee_client.use_api:
                 # API mode returns JSON-serialized results
                 if isinstance(search_results, str):
                     return search_results
                 elif isinstance(search_results, list):
-                    if (
-                        search_type.upper() in ["GRAPH_COMPLETION", "RAG_COMPLETION"]
-                        and len(search_results) > 0
-                    ):
-                        return str(search_results[0])
+                    if search_type.upper() in ["GRAPH_COMPLETION", "RAG_COMPLETION"]:
+                        return _combine_completion_results(search_results)
                     return str(search_results)
                 else:
                     return json.dumps(search_results, cls=JSONEncoder)
@@ -644,11 +668,8 @@ async def search(
                 # Direct mode processing
                 if search_type.upper() == "CODE":
                     return json.dumps(search_results, cls=JSONEncoder)
-                elif (
-                    search_type.upper() == "GRAPH_COMPLETION"
-                    or search_type.upper() == "RAG_COMPLETION"
-                ):
-                    return str(search_results[0])
+                elif search_type.upper() in ("GRAPH_COMPLETION", "RAG_COMPLETION"):
+                    return _combine_completion_results(search_results)
                 elif search_type.upper() == "CHUNKS":
                     return str(search_results)
                 elif search_type.upper() == "INSIGHTS":
@@ -1179,23 +1200,27 @@ async def improve(
 
 @mcp.tool()
 @log_usage(function_name="MCP cognify_status", log_type="mcp_tool")
-async def cognify_status(dataset_name: str = "main_dataset") -> list:
+async def cognify_status(
+    dataset_name: str = "main_dataset",
+    pipelines: List[str] = None,
+) -> list:
     """
-    Get the current status of the cognify pipeline.
+    Get the current status of selected pipelines.
 
-    This function retrieves information about current and recently completed cognify operations
-    in the main_dataset. It provides details on progress, success/failure status, and statistics
-    about the processed data.
+    This function retrieves information about current and recently completed
+    pipeline operations in the selected dataset.
 
     Returns
     -------
     list
         A list containing a single TextContent object with the status information as a string.
-        The status includes information about active and completed jobs for the cognify_pipeline.
+        The status includes information about active and completed jobs for the
+        requested pipelines.
 
     Notes
     -----
-    - The function retrieves pipeline status specifically for the "cognify_pipeline" on the "main_dataset"
+    - By default this checks "cognify_pipeline" (backward compatible)
+    - Use `pipelines` to restrict to specific pipeline names
     - Status information includes job progress, execution time, and completion status
     - The status is returned in string format for easy reading
     - This operation is not available in API mode
@@ -1206,9 +1231,21 @@ async def cognify_status(dataset_name: str = "main_dataset") -> list:
             from cognee.modules.users.methods import get_default_user
 
             user = await get_default_user()
-            status = await cognee_client.get_pipeline_status(
-                [await get_unique_dataset_id(dataset_name, user)], "cognify_pipeline"
-            )
+            dataset_id = await get_unique_dataset_id(dataset_name, user)
+            requested_pipelines = list(dict.fromkeys(pipelines or ["cognify_pipeline"]))
+
+            if len(requested_pipelines) == 1:
+                status = await cognee_client.get_pipeline_status(
+                    [dataset_id], requested_pipelines[0]
+                )
+            else:
+                status: dict[str, dict] = {str(dataset_id): {}}
+                for pipeline_name in requested_pipelines:
+                    pipeline_status = await cognee_client.get_pipeline_status(
+                        [dataset_id], pipeline_name
+                    )
+                    if str(dataset_id) in pipeline_status:
+                        status[str(dataset_id)][pipeline_name] = pipeline_status[str(dataset_id)]
 
             # Append any background task errors
             status_text = str(status)

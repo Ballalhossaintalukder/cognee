@@ -8,12 +8,15 @@ from secrets import token_bytes
 from typing import Any, Hashable
 
 from cognee.infrastructure.llm import get_llm_config
-from cognee.infrastructure.llm.structured_output_framework.litellm_instructor.llm.ollama.adapter import (
-    OllamaAPIAdapter,
-)
 from cognee.infrastructure.llm.exceptions import (
     LLMAPIKeyNotSetError,
     UnsupportedLLMProviderError,
+)
+from cognee.infrastructure.llm.structured_output_framework.litellm_instructor.llm.llm_interface import (
+    LLMInterface,
+)
+from cognee.infrastructure.llm.structured_output_framework.litellm_instructor.llm.ollama.adapter import (
+    OllamaAPIAdapter,
 )
 
 _LLM_CLIENT_CACHE_MAXSIZE = 32
@@ -149,10 +152,11 @@ def _raise_for_missing_api_key(
 
 
 @lru_cache(maxsize=_LLM_CLIENT_CACHE_MAXSIZE)
-def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
+def _get_llm_client_cached(cache_key: _LLMClientCacheKey) -> LLMInterface:
     """Create and cache LLM adapters with bounded LRU eviction."""
     llm_config = get_llm_config()
     provider = LLMProvider(cache_key.provider)
+    llm_api_key: str = llm_config.llm_api_key or ""
     llm_args = _unfreeze_from_cache(cache_key.llm_args) or {}
     max_completion_tokens = cache_key.max_completion_tokens
 
@@ -161,8 +165,8 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
             AzureOpenAIAdapter,
         )
 
-        client = AzureOpenAIAdapter(
-            api_key=llm_config.llm_api_key,
+        return AzureOpenAIAdapter(
+            api_key=llm_api_key,
             endpoint=cache_key.endpoint,
             api_version=cache_key.api_version,
             model=cache_key.model,
@@ -182,8 +186,8 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
             OpenAIAdapter,
         )
 
-        client = OpenAIAdapter(
-            api_key=llm_config.llm_api_key,
+        return OpenAIAdapter(
+            api_key=llm_api_key,
             endpoint=cache_key.endpoint,
             api_version=cache_key.api_version,
             model=cache_key.model,
@@ -198,9 +202,9 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
         )
 
     elif provider == LLMProvider.OLLAMA:
-        client = OllamaAPIAdapter(
+        return OllamaAPIAdapter(
             cache_key.endpoint,
-            llm_config.llm_api_key,
+            llm_api_key,
             cache_key.model,
             "Ollama",
             max_completion_tokens,
@@ -213,8 +217,8 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
             AnthropicAdapter,
         )
 
-        client = AnthropicAdapter(
-            llm_config.llm_api_key,
+        return AnthropicAdapter(
+            llm_api_key,
             cache_key.model,
             max_completion_tokens,
             instructor_mode=cache_key.instructor_mode,
@@ -226,8 +230,8 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
             GenericAPIAdapter,
         )
 
-        client = GenericAPIAdapter(
-            api_key=llm_config.llm_api_key,
+        return GenericAPIAdapter(
+            api_key=llm_api_key,
             model=cache_key.model,
             max_completion_tokens=max_completion_tokens,
             name="Custom",
@@ -244,8 +248,8 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
             GeminiAdapter,
         )
 
-        client = GeminiAdapter(
-            api_key=llm_config.llm_api_key,
+        return GeminiAdapter(
+            api_key=llm_api_key,
             model=cache_key.model,
             max_completion_tokens=max_completion_tokens,
             endpoint=cache_key.endpoint,
@@ -259,8 +263,8 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
             MistralAdapter,
         )
 
-        client = MistralAdapter(
-            api_key=llm_config.llm_api_key,
+        return MistralAdapter(
+            api_key=llm_api_key,
             model=cache_key.model,
             max_completion_tokens=max_completion_tokens,
             endpoint=cache_key.endpoint,
@@ -276,7 +280,7 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
             BedrockAdapter,
         )
 
-        client = BedrockAdapter(
+        return BedrockAdapter(
             model=cache_key.model,
             api_key=llm_config.llm_api_key,
             max_completion_tokens=max_completion_tokens,
@@ -290,7 +294,7 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
             LlamaCppAPIAdapter,
         )
 
-        client = LlamaCppAPIAdapter(
+        return LlamaCppAPIAdapter(
             model=cache_key.model,
             max_completion_tokens=max_completion_tokens,
             instructor_mode=cache_key.instructor_mode,
@@ -305,10 +309,8 @@ def _get_llm_client_cached(cache_key: _LLMClientCacheKey):
     else:
         raise UnsupportedLLMProviderError(provider)
 
-    return client
 
-
-def get_llm_client(raise_api_key_error: bool = True):
+def get_llm_client(raise_api_key_error: bool = True) -> LLMInterface:
     """
     Get the LLM client based on the configuration using Enums.
 
@@ -335,11 +337,12 @@ def get_llm_client(raise_api_key_error: bool = True):
     )  # imported here to avoid circular imports
 
     model_max_completion_tokens = get_model_max_completion_tokens(llm_config.llm_model)
-    max_completion_tokens = (
-        model_max_completion_tokens
-        if model_max_completion_tokens
-        else llm_config.llm_max_completion_tokens
-    )
+    user_max = llm_config.llm_max_completion_tokens
+    if model_max_completion_tokens is not None:
+        # Use the lower of the model's hard limit and the user's configured ceiling
+        max_completion_tokens = min(model_max_completion_tokens, user_max)
+    else:
+        max_completion_tokens = user_max
 
     cache_key = _build_llm_client_cache_key(llm_config, max_completion_tokens)
     return _get_llm_client_cached(cache_key)
