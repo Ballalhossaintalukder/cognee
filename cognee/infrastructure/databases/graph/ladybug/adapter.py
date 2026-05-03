@@ -4,6 +4,7 @@ import os
 import json
 import asyncio
 import tempfile
+import shutil
 from uuid import UUID, uuid5, NAMESPACE_OID
 from ladybug import Connection
 from ladybug.database import Database
@@ -81,8 +82,11 @@ class LadybugAdapter(GraphDBInterface):
             missing json extension errors will be raised.
             """
             try:
-                with tempfile.NamedTemporaryFile(mode="w", delete=True) as temp_file:
-                    temp_graph_file = temp_file.name
+                fd, temp_graph_file = tempfile.mkstemp()
+                os.close(fd)
+                tmp_db = None
+                connection = None
+                try:
                     tmp_db = Database(
                         temp_graph_file,
                         buffer_pool_size=2048 * 1024 * 1024,  # 2048MB buffer pool
@@ -91,6 +95,20 @@ class LadybugAdapter(GraphDBInterface):
                     tmp_db.init_database()
                     connection = Connection(tmp_db)
                     connection.execute("INSTALL JSON;")
+                finally:
+                    if connection is not None:
+                        connection.close()
+                    if tmp_db is not None:
+                        tmp_db.close()
+                    for path in (
+                        temp_graph_file,
+                        temp_graph_file + ".wal",
+                        temp_graph_file + ".lock",
+                    ):
+                        if os.path.isdir(path):
+                            shutil.rmtree(path)
+                        elif os.path.exists(path):
+                            os.unlink(path)
             except Exception as e:
                 logger.info(f"JSON extension already installed or not needed: {e}")
 
@@ -1705,11 +1723,24 @@ class LadybugAdapter(GraphDBInterface):
         where_clauses = []
         params = {}
 
+        if not attribute_filters:
+            return [], []
+
         for i, filter_dict in enumerate(attribute_filters):
             for attr, values in filter_dict.items():
+                if not attr.isidentifier():
+                    raise CogneeValidationError(
+                        f"Invalid attribute filter key '{attr}'. Only identifiers are allowed."
+                    )
+                if not values:
+                    continue
+
                 param_name = f"values_{i}_{attr}"
                 where_clauses.append(f"n.{attr} IN ${param_name}")
                 params[param_name] = values
+
+        if not where_clauses:
+            return [], []
 
         where_clause = " AND ".join(where_clauses)
         nodes_query = f"""
@@ -1926,7 +1957,7 @@ class LadybugAdapter(GraphDBInterface):
         """Get the number of connected components in the graph."""
         query = """
         MATCH (n:Node)
-        WITH n.id AS node_id
+        WITH n, n.id AS node_id
         MATCH path = (n)-[:EDGE*1..3]-(m)
         WITH node_id, COLLECT(DISTINCT m.id) AS connected_nodes
         WITH COLLECT(DISTINCT connected_nodes + [node_id]) AS components
@@ -1939,7 +1970,7 @@ class LadybugAdapter(GraphDBInterface):
         """Get the sizes of all connected components in the graph."""
         query = """
         MATCH (n:Node)
-        WITH n.id AS node_id
+        WITH n, n.id AS node_id
         MATCH path = (n)-[:EDGE*1..3]-(m)
         WITH node_id, COLLECT(DISTINCT m.id) AS connected_nodes
         WITH COLLECT(DISTINCT connected_nodes + [node_id]) AS components

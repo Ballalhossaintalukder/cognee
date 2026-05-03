@@ -25,17 +25,32 @@ async def main():
     )
 
     try:
-        # Set Ladybug as the graph database provider
-        cognee.config.set_graph_database_provider("ladybug")
+        # Set remote Ladybug as the graph database provider
+        cognee.config.set_graph_database_provider("ladybug-remote")
         cognee.config.data_root_directory(data_directory_path)
         cognee.config.system_root_directory(cognee_directory_path)
 
         # Configure remote Ladybug database using environment variables
-        os.environ["LADYBUG_HOST"] = os.getenv("LADYBUG_HOST", "localhost")
-        os.environ["LADYBUG_PORT"] = os.getenv("LADYBUG_PORT", "8000")
-        os.environ["LADYBUG_USERNAME"] = os.getenv("LADYBUG_USERNAME", "ladybug")
-        os.environ["LADYBUG_PASSWORD"] = os.getenv("LADYBUG_PASSWORD", "ladybug")
-        os.environ["LADYBUG_DATABASE"] = os.getenv("LADYBUG_DATABASE", "cognee_test")
+        host = os.getenv("LADYBUG_HOST", "localhost")
+        port = os.getenv("LADYBUG_PORT", "8000")
+        graph_database_url = os.getenv("GRAPH_DATABASE_URL", f"http://{host}:{port}")
+        graph_database_username = os.getenv(
+            "GRAPH_DATABASE_USERNAME", os.getenv("LADYBUG_USERNAME", "ladybug")
+        )
+        graph_database_password = os.getenv(
+            "GRAPH_DATABASE_PASSWORD", os.getenv("LADYBUG_PASSWORD", "ladybug")
+        )
+        os.environ["GRAPH_DATABASE_URL"] = graph_database_url
+        os.environ["GRAPH_DATABASE_USERNAME"] = graph_database_username
+        os.environ["GRAPH_DATABASE_PASSWORD"] = graph_database_password
+
+        from cognee.infrastructure.databases.graph.config import get_graph_config
+
+        graph_config = get_graph_config()
+        graph_config.graph_database_provider = "ladybug-remote"
+        graph_config.graph_database_url = graph_database_url
+        graph_config.graph_database_username = graph_database_username
+        graph_config.graph_database_password = graph_database_password
 
         await cognee.prune.prune_data()
         await cognee.prune.prune_system(metadata=True)

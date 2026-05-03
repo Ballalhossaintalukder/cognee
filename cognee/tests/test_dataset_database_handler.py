@@ -37,7 +37,16 @@ class LanceDBTestDatasetDatabaseHandler(DatasetDatabaseHandlerInterface):
 class LadybugTestDatasetDatabaseHandler(DatasetDatabaseHandlerInterface):
     @classmethod
     async def create_dataset(cls, dataset_id, user):
-        databases_directory_path = os.path.join("databases", str(user.id))
+        import pathlib
+
+        cognee_directory_path = str(
+            pathlib.Path(
+                os.path.join(
+                    pathlib.Path(__file__).parent, ".cognee_system/test_dataset_database_handler"
+                )
+            ).resolve()
+        )
+        databases_directory_path = os.path.join(cognee_directory_path, "databases", str(user.id))
         os.makedirs(databases_directory_path, exist_ok=True)
 
         graph_db_name = "test.lbug"
