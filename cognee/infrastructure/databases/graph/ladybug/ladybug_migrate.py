@@ -114,13 +114,22 @@ def run_migration_step(python_exe: str, module_name: str, db_path: str, cypher: 
     Uses the given python_exe to execute a short snippet that
     connects to the database and runs a Cypher command.
     """
+    db_path = os.path.abspath(db_path)
     snippet = f"""
 import {module_name} as graph_db
-db = graph_db.Database(r"{db_path}")
+db = graph_db.Database({db_path!r})
 conn = graph_db.Connection(db)
-conn.execute(r\"\"\"{cypher}\"\"\")
+conn.execute({cypher!r})
 """
-    proc = subprocess.run([python_exe, "-c", snippet], capture_output=True, text=True)
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    proc = subprocess.run(
+        [python_exe, "-c", snippet],
+        capture_output=True,
+        text=True,
+        cwd=tempfile.gettempdir(),
+        env=env,
+    )
     if proc.returncode != 0:
         raise RuntimeError(f"{cypher} failed:\n{proc.stderr}")
 
