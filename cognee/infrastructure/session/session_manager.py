@@ -670,6 +670,7 @@ class SessionManager:
         answer: str | None = None,
         feedback_text: str | None = None,
         feedback_score: int | None = None,
+        used_graph_element_ids: dict | None = None,
         memify_metadata: dict | None = None,
         session_id: str | None = None,
     ) -> bool:
@@ -679,6 +680,7 @@ class SessionManager:
         Only passed fields are updated; None preserves existing values.
         Returns True if updated, False if not found or cache unavailable.
         memify_metadata: Optional dict with status keys (e.g. "feedback_weights_applied") and bool values.
+        used_graph_element_ids: Optional dict with "node_ids" and "edge_ids" lists for frequency weights.
         """
         from cognee.infrastructure.locks import session_lock
 
@@ -698,6 +700,7 @@ class SessionManager:
                 answer=answer,
                 feedback_text=feedback_text,
                 feedback_score=feedback_score,
+                used_graph_element_ids=used_graph_element_ids,
                 memify_metadata=memify_metadata,
             )
 
