@@ -373,7 +373,7 @@ You can configure both transports simultaneously for testing:
 The MCP server supports three connection modes:
 
 ### **Direct Mode** (Default)
-The MCP server directly imports and uses the cognee library with local databases (SQLite, LanceDB, Kuzu). This is the default mode with full feature support.
+The MCP server directly imports and uses the cognee library with local databases (SQLite, LanceDB, Ladybug). This is the default mode with full feature support.
 
 ### **Cloud Mode**
 Connect to [Cognee Cloud](https://www.cognee.ai) or a remote Cognee instance. The server calls `cognee.serve()` at startup, and all SDK operations transparently route to the cloud. No local databases needed.

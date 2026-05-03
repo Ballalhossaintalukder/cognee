@@ -103,7 +103,7 @@ async def main():
 
 # Please set ENABLE_BACKEND_ACCESS_CONTROL=True in .env file
 # Note: When ENABLE_BACKEND_ACCESS_CONTROL is enabled vector provider is automatically set to use LanceDB
-# and graph provider is set to use Kuzu.
+# and graph provider is set to use Ladybug.
 if __name__ == "__main__":
     import asyncio
 

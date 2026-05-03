@@ -71,7 +71,7 @@ async def setup_test_environment_simple():
         base_dir / ".data_storage/test_graph_completion_decomposition_context_simple"
     )
 
-    cognee.config.set_graph_database_provider("kuzu")
+    cognee.config.set_graph_database_provider("ladybug")
     cognee.config.set_vector_db_config({"vector_db_provider": "lancedb"})
     cognee.config.set_relational_db_config({"db_provider": "sqlite"})
     cognee.config.system_root_directory(system_directory_path)
@@ -121,7 +121,7 @@ async def setup_test_environment_empty():
         base_dir / ".data_storage/test_graph_completion_decomposition_context_empty"
     )
 
-    cognee.config.set_graph_database_provider("kuzu")
+    cognee.config.set_graph_database_provider("ladybug")
     cognee.config.set_vector_db_config({"vector_db_provider": "lancedb"})
     cognee.config.set_relational_db_config({"db_provider": "sqlite"})
     cognee.config.system_root_directory(system_directory_path)
