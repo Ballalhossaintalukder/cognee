@@ -2190,7 +2190,13 @@ class LadybugAdapter(GraphDBInterface):
         result = await self.query(query)
         return [record[0] for record in result] if result else []
 
-    async def collect_events(self, ids: List[str]) -> Any:
+    def _normalize_temporal_ids(self, ids: Union[List[str], str]) -> List[str]:
+        if isinstance(ids, str):
+            return [uid.strip().strip("'\"") for uid in ids.split(",") if uid.strip()]
+
+        return ids
+
+    async def collect_events(self, ids: Union[List[str], str]) -> Any:
         """
         Collect all Event-type nodes reachable within 1..2 hops
         from the given node IDs.
@@ -2211,6 +2217,7 @@ class LadybugAdapter(GraphDBInterface):
             RETURN collect(event) AS events;
         """
 
+        ids = self._normalize_temporal_ids(ids)
         result = await self.query(event_collection_cypher, {"ids": ids})
         events = []
         if not result or not result[0] or not result[0][0]:
@@ -2236,7 +2243,7 @@ class LadybugAdapter(GraphDBInterface):
         self,
         time_from: Optional[Timestamp] = None,
         time_to: Optional[Timestamp] = None,
-    ) -> str:
+    ) -> List[str]:
         """
         Collect IDs of Timestamp nodes between time_from and time_to.
 
@@ -2246,8 +2253,7 @@ class LadybugAdapter(GraphDBInterface):
             time_to: Upper bound int (inclusive), optional
 
         Returns:
-            A string of quoted IDs:  "'id1', 'id2', 'id3'"
-            (ready for use in a Cypher UNWIND clause).
+            A list of timestamp node IDs.
         """
 
         ids: List[str] = []
@@ -2311,7 +2317,7 @@ class LadybugAdapter(GraphDBInterface):
         time_nodes = await self.query(cypher)
         time_ids_list = [item[0] for item in time_nodes]
 
-        return ", ".join(f"'{uid}'" for uid in time_ids_list)
+        return time_ids_list
 
     async def get_triplets_batch(self, offset: int, limit: int) -> list[dict[str, Any]]:
         """
