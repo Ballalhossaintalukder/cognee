@@ -5,7 +5,7 @@ from enum import Enum
 from functools import lru_cache
 from hmac import digest
 from secrets import token_bytes
-from typing import Any, Hashable
+from typing import Any, Hashable, TypeGuard
 
 from cognee.infrastructure.llm import get_llm_config
 from cognee.infrastructure.llm.exceptions import (
@@ -98,13 +98,17 @@ def _freeze_for_cache(value: Any) -> Hashable:
     return value
 
 
+def _is_frozen_mapping(value: tuple[Any, ...]) -> TypeGuard[tuple[tuple[str, Hashable], ...]]:
+    """Return whether a frozen tuple represents sorted key-value mapping items."""
+    return all(
+        isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], str) for item in value
+    )
+
+
 def _unfreeze_from_cache(value: Hashable) -> Any:
     """Rebuild JSON-like values from their cache-key representation."""
     if isinstance(value, tuple):
-        if all(
-            isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], str)
-            for item in value
-        ):
+        if _is_frozen_mapping(value):
             return {key: _unfreeze_from_cache(item) for key, item in value}
         return [_unfreeze_from_cache(item) for item in value]
     return value
