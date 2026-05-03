@@ -53,7 +53,10 @@ class AnthropicAdapter(GenericAPIAdapter):
         self.instructor_mode = instructor_mode if instructor_mode else self.default_instructor_mode
 
         self.aclient: AsyncInstructorChatCompletionCreate = instructor.patch(
-            create=anthropic.AsyncAnthropic(api_key=self.api_key).messages.create,
+            create=anthropic.AsyncAnthropic(
+                api_key=self.api_key,
+                http_client=anthropic.DefaultAsyncHttpxClient(http2=False),
+            ).messages.create,
             mode=instructor.Mode(self.instructor_mode),
         )
 

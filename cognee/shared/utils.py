@@ -22,6 +22,9 @@ proxy_url = "https://test.prometh.ai"
 
 # Timeout for telemetry HTTP request; short to avoid blocking if proxy is unreachable
 TELEMETRY_REQUEST_TIMEOUT: int = int(os.getenv("TELEMETRY_REQUEST_TIMEOUT", "5"))
+_TELEMETRY_API_KEY_TRACKING_SALT_ENV = "TELEMETRY_API_KEY_TRACKING_SALT"
+_DEFAULT_TELEMETRY_API_KEY_TRACKING_SALT = b"cognee.telemetry.api-key-tracking.v1"
+_TELEMETRY_API_KEY_TRACKING_ITERATIONS = 100_000
 
 
 def create_secure_ssl_context() -> ssl.SSLContext:
@@ -133,22 +136,41 @@ async def _send_telemetry_request(payload: dict) -> None:
         logger.debug("Telemetry request failed: %s", e)
 
 
-def _get_api_key_fingerprint() -> str:
-    """Hash the last 5 chars of the LLM API key into a fingerprint.
+def _get_api_key_tracking_id() -> str:
+    """Return a stable pseudonymous analytics ID derived from the full LLM API key.
 
-    The last 5 characters carry the real entropy — provider prefixes
-    (sk-proj-, sk-ant-, AIzaSy-) are shared across all users. Hashing
-    the tail gives a stable identity signal that works across machines
-    and reinstalls without exposing the key.
+    The raw key and visible key fragments are never included in telemetry. The
+    derived ID is stable across machines for the same key so analytics can group
+    agent/user activity, while avoiding the previous last-characters fingerprint.
 
-    Returns empty string if no key is configured or too short.
+    TELEMETRY_API_KEY_TRACKING_SALT can be set by deployments that want their own
+    namespace. A default public namespace keeps tracking stable for local installs.
     """
     import hashlib
 
     key = os.getenv("LLM_API_KEY", "")
-    if not key or len(key) < 5:
+    if not key:
         return ""
-    return hashlib.sha256(key[-5:].encode()).hexdigest()[:8]
+
+    configured_salt = os.getenv(_TELEMETRY_API_KEY_TRACKING_SALT_ENV)
+    salt = (
+        configured_salt.encode("utf-8")
+        if configured_salt
+        else _DEFAULT_TELEMETRY_API_KEY_TRACKING_SALT
+    )
+    derived = hashlib.pbkdf2_hmac(
+        "sha256",
+        key.encode("utf-8"),
+        salt,
+        _TELEMETRY_API_KEY_TRACKING_ITERATIONS,
+        dklen=16,
+    )
+    return f"ak_{derived.hex()}"
+
+
+def _get_api_key_fingerprint() -> str:
+    """Backward-compatible alias for the API-key telemetry tracking ID."""
+    return _get_api_key_tracking_id()
 
 
 def send_telemetry(event_name: str, user_id: str | UUID, additional_properties: dict | None = None):
@@ -163,6 +185,9 @@ def send_telemetry(event_name: str, user_id: str | UUID, additional_properties: 
       correlate a single machine across all user_id changes.
     - **user_id**: Transient Cognee User UUID from the database. Changes
       when the user is deleted and recreated via forget(everything=True).
+    - **api_key_tracking_id**: Stable pseudonymous ID derived from the full
+      LLM API key when configured. Use this to group activity by key without
+      sending the key or visible key fragments.
     """
     if additional_properties is None:
         additional_properties = {}
@@ -177,7 +202,7 @@ def send_telemetry(event_name: str, user_id: str | UUID, additional_properties: 
     )
     anonymous_id = str(get_anonymous_id())
     persistent_id = str(get_persistent_id())
-    api_key_hash = _get_api_key_fingerprint()
+    api_key_tracking_id = _get_api_key_tracking_id()
     current_time = datetime.now(timezone.utc)
     payload = {
         "anonymous_id": anonymous_id,
@@ -185,14 +210,16 @@ def send_telemetry(event_name: str, user_id: str | UUID, additional_properties: 
         "user_properties": {
             "user_id": str(user_id),
             "persistent_id": persistent_id,
-            "api_key_hash": api_key_hash,
+            "api_key_tracking_id": api_key_tracking_id,
+            "api_key_hash": api_key_tracking_id,
         },
         "properties": {
             "time": current_time.strftime("%m/%d/%Y"),
             "user_id": str(user_id),
             "anonymous_id": anonymous_id,
             "persistent_id": persistent_id,
-            "api_key_hash": api_key_hash,
+            "api_key_tracking_id": api_key_tracking_id,
+            "api_key_hash": api_key_tracking_id,
             **additional_properties,
         },
     }
