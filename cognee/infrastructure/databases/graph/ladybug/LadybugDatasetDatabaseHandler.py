@@ -43,8 +43,6 @@ class LadybugDatasetDatabaseHandler(DatasetDatabaseHandlerInterface):
         )
         graph_db_url = graph_config.graph_database_url
         graph_db_key = graph_config.graph_database_key
-        graph_db_username = graph_config.graph_database_username
-        graph_db_password = graph_config.graph_database_password
 
         return {
             "graph_database_name": graph_db_name,
@@ -52,10 +50,7 @@ class LadybugDatasetDatabaseHandler(DatasetDatabaseHandlerInterface):
             "graph_database_provider": graph_config.graph_database_provider,
             "graph_database_key": graph_db_key,
             "graph_dataset_database_handler": graph_config.graph_dataset_database_handler,
-            "graph_database_connection_info": {
-                "graph_database_username": graph_db_username,
-                "graph_database_password": graph_db_password,
-            },
+            "graph_database_connection_info": {},
         }
 
     @classmethod
@@ -73,12 +68,8 @@ class LadybugDatasetDatabaseHandler(DatasetDatabaseHandlerInterface):
             graph_database_name=dataset_database.graph_database_name,
             graph_database_key=dataset_database.graph_database_key,
             graph_file_path=graph_file_path,
-            graph_database_username=dataset_database.graph_database_connection_info.get(
-                "graph_database_username", ""
-            ),
-            graph_database_password=dataset_database.graph_database_connection_info.get(
-                "graph_database_password", ""
-            ),
+            graph_database_username="",
+            graph_database_password="",
             graph_dataset_database_handler="",
             graph_database_port="",
         )

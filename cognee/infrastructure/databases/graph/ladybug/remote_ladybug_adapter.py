@@ -1,12 +1,13 @@
 """Adapter for remote Ladybug graph database via REST API."""
 
-from cognee.shared.logging_utils import get_logger
 import json
-from typing import Dict, Any, List, Optional, Tuple
-import aiohttp
 from uuid import UUID
+from typing import List, Optional, Tuple
+
+import aiohttp
 
 from cognee.infrastructure.databases.graph.ladybug.adapter import LadybugAdapter
+from cognee.shared.logging_utils import get_logger
 from cognee.shared.utils import create_secure_ssl_context
 
 logger = get_logger()
@@ -35,8 +36,8 @@ class RemoteLadybugAdapter(LadybugAdapter):
         # Initialize parent with a dummy path since we're using REST API
         super().__init__("/tmp/ladybug_remote")
         self.api_url = api_url
-        self.username = username
-        self.password = password
+        self.username = username or ""
+        self.password = password or ""
         self._session = None
         self._schema_initialized = False
 
@@ -58,28 +59,33 @@ class RemoteLadybugAdapter(LadybugAdapter):
         """Make a request to the Ladybug API."""
         url = f"{self.api_url}{endpoint}"
         session = await self._get_session()
+        auth = (
+            aiohttp.BasicAuth(self.username, self.password)
+            if self.username or self.password
+            else None
+        )
         try:
             # Use custom encoder for UUID serialization
             json_data = json.dumps(data, cls=UUIDEncoder)
             async with session.post(
-                url, data=json_data, headers={"Content-Type": "application/json"}
+                url,
+                data=json_data,
+                headers={"Content-Type": "application/json"},
+                auth=auth,
             ) as response:
                 if response.status != 200:
-                    error_detail = await response.text()
-                    logger.error(
-                        f"API request failed with status {response.status}: {error_detail}\n"
-                        f"Request data: {data}"
-                    )
+                    await response.text()
+                    message = f"API request failed with status {response.status} for {endpoint}"
+                    logger.error(message)
                     raise aiohttp.ClientResponseError(
                         response.request_info,
                         response.history,
                         status=response.status,
-                        message=error_detail,
+                        message=message,
                     )
                 return await response.json()
         except aiohttp.ClientError as e:
-            logger.error(f"API request failed: {str(e)}")
-            logger.error(f"Request data: {data}")
+            logger.error(f"API request failed for {endpoint}: {str(e)}")
             raise
 
     async def query(self, query: str, params: Optional[dict] = None) -> List[Tuple]:
@@ -112,8 +118,6 @@ class RemoteLadybugAdapter(LadybugAdapter):
             return results
         except Exception as e:
             logger.error(f"Query execution failed: {str(e)}")
-            logger.error(f"Query: {query}")
-            logger.error(f"Parameters: {params}")
             raise
 
     async def _check_schema_exists(self) -> bool:

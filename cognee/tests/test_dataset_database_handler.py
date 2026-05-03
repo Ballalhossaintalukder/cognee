@@ -1,9 +1,6 @@
-import asyncio
 import os
 
-# Set custom dataset database handler environment variable
-os.environ["VECTOR_DATASET_DATABASE_HANDLER"] = "custom_lancedb_handler"
-os.environ["GRAPH_DATASET_DATABASE_HANDLER"] = "custom_ladybug_handler"
+import pytest
 
 import cognee
 from cognee.modules.users.methods import get_default_user
@@ -52,7 +49,7 @@ class LadybugTestDatasetDatabaseHandler(DatasetDatabaseHandlerInterface):
         }
 
 
-async def main():
+async def _run_custom_dataset_database_handler_flow():
     import pathlib
 
     data_directory_path = str(
@@ -129,11 +126,19 @@ async def main():
     ), "Vector database file not found."
 
 
+@pytest.mark.asyncio
+async def test_custom_dataset_database_handlers(monkeypatch):
+    monkeypatch.setenv("VECTOR_DATASET_DATABASE_HANDLER", "custom_lancedb_handler")
+    monkeypatch.setenv("GRAPH_DATASET_DATABASE_HANDLER", "custom_ladybug_handler")
+
+    await _run_custom_dataset_database_handler_flow()
+
+
 if __name__ == "__main__":
-    logger = setup_logging(log_level=ERROR)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(main())
-    finally:
-        loop.run_until_complete(loop.shutdown_asyncgens())
+    import asyncio
+
+    os.environ["VECTOR_DATASET_DATABASE_HANDLER"] = "custom_lancedb_handler"
+    os.environ["GRAPH_DATASET_DATABASE_HANDLER"] = "custom_ladybug_handler"
+
+    setup_logging(log_level=ERROR)
+    asyncio.run(_run_custom_dataset_database_handler_flow())

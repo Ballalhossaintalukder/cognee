@@ -56,7 +56,7 @@ def read_ladybug_storage_version(ladybug_db_path: str) -> str:
     if os.path.isdir(ladybug_db_path):
         version_file_path = os.path.join(ladybug_db_path, "catalog.kz")
         if not os.path.isfile(version_file_path):
-            raise FileExistsError("Ladybug catalog.kz file does not exist")
+            raise FileNotFoundError("Ladybug catalog.kz file does not exist")
     else:
         version_file_path = ladybug_db_path
 
@@ -92,7 +92,9 @@ def ensure_env(version: str, export_dir) -> tuple[str, str]:
 
     # venv base under the script directory
     base = os.path.join(envs_dir, f"{package_name}_{version}")
-    py_bin = os.path.join(base, "bin", "python")
+    scripts_dir = "Scripts" if os.name == "nt" else "bin"
+    python_executable = "python.exe" if os.name == "nt" else "python"
+    py_bin = os.path.join(base, scripts_dir, python_executable)
     # If environment already exists clean it
     if os.path.isfile(py_bin):
         shutil.rmtree(base)
@@ -120,8 +122,7 @@ conn.execute(r\"\"\"{cypher}\"\"\")
 """
     proc = subprocess.run([python_exe, "-c", snippet], capture_output=True, text=True)
     if proc.returncode != 0:
-        print(f"[ERROR] {cypher} failed:\n{proc.stderr}", file=sys.stderr)
-        sys.exit(proc.returncode)
+        raise RuntimeError(f"{cypher} failed:\n{proc.stderr}")
 
 
 def ladybug_migration(
@@ -140,8 +141,7 @@ def ladybug_migration(
 
     # Check if old database exists
     if not os.path.exists(old_db):
-        print(f"Source database '{old_db}' does not exist.", file=sys.stderr)
-        sys.exit(1)
+        raise FileNotFoundError(f"Source database '{old_db}' does not exist.")
 
     # Prepare target - ensure parent directory exists but remove target if it exists
     parent_dir = os.path.dirname(new_db)
@@ -177,10 +177,10 @@ def ladybug_migration(
 
     # Rename new database to old database name if enabled
     if overwrite or delete_old:
-        # Remove lock from migrated DB
-        lock_file = new_db + ".lock"
-        if os.path.exists(lock_file):
-            os.remove(lock_file)
+        # Remove stale locks before replacing the original database path.
+        for lock_file in (new_db + ".lock", old_db + ".lock"):
+            if os.path.exists(lock_file):
+                os.remove(lock_file)
         rename_databases(old_db, old_version, new_db, delete_old)
 
     print("Ladybug graph database migration finished successfully!")
@@ -219,8 +219,7 @@ def rename_databases(old_db: str, old_version: str, new_db: str, delete_old: boo
             os.rename(old_db, backup_dir)
             print(f"Renamed directory '{old_db}' to '{backup_dir}'", file=sys.stderr)
     else:
-        print(f"Original database path '{old_db}' not found for renaming.", file=sys.stderr)
-        sys.exit(1)
+        raise FileNotFoundError(f"Original database path '{old_db}' not found for renaming.")
 
     # Now move new files into place
     for ext in ["", ".wal"]:

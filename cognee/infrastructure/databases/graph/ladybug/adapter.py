@@ -61,12 +61,12 @@ class LadybugAdapter(GraphDBInterface):
         self.db_path = db_path  # Path for the database directory
         self.db: Optional[Database] = None
         self.connection: Optional[Connection] = None
+        self.executor = ThreadPoolExecutor()
         if cache_config.shared_ladybug_lock:
             self.redis_lock = get_cache_engine(
                 lock_key="ladybug-lock-" + str(uuid5(NAMESPACE_OID, db_path))
             )
         else:
-            self.executor = ThreadPoolExecutor()
             self._initialize_connection()
         self.LADYBUG_ASYNC_LOCK = asyncio.Lock()
         self._connection_change_lock = asyncio.Lock()
@@ -285,9 +285,10 @@ class LadybugAdapter(GraphDBInterface):
                     async with self._connection_change_lock:
                         self.open_connections += 1
                         logger.info(f"Open connections after open: {self.open_connections}")
-                        try:
-                            result = blocking_query()
-                        finally:
+                    try:
+                        result = await loop.run_in_executor(self.executor, blocking_query)
+                    finally:
+                        async with self._connection_change_lock:
                             self.open_connections -= 1
                             logger.info(f"Open connections after close: {self.open_connections}")
                 else:
@@ -298,6 +299,7 @@ class LadybugAdapter(GraphDBInterface):
             except Exception as e:
                 otel_span.set_status(StatusCode.ERROR, str(e))
                 otel_span.record_exception(e)
+                raise
 
     def close(self):
         if self.connection:
@@ -1868,10 +1870,10 @@ class LadybugAdapter(GraphDBInterface):
         """
 
         try:
-            # Get basic graph data
-            nodes, edges = await self.get_model_independent_graph_data()
-            num_nodes = len(nodes[0]["nodes"]) if nodes else 0
-            num_edges = len(edges[0]["elements"]) if edges else 0
+            node_count_result = await self.query("MATCH (n:Node) RETURN COUNT(n)")
+            edge_count_result = await self.query("MATCH ()-[r:EDGE]->() RETURN COUNT(r)")
+            num_nodes = node_count_result[0][0] if node_count_result else 0
+            num_edges = edge_count_result[0][0] if edge_count_result else 0
 
             # Calculate mandatory metrics
             mandatory_metrics = {
@@ -2170,17 +2172,19 @@ class LadybugAdapter(GraphDBInterface):
             List of events
         """
 
-        event_collection_cypher = """UNWIND [{quoted}] AS uid
-            MATCH (start {{id: uid}})
+        event_collection_cypher = """UNWIND $ids AS uid
+            MATCH (start {id: uid})
             MATCH (start)-[*1..2]-(event)
             WHERE event.type = 'Event'
             WITH DISTINCT event
             RETURN collect(event) AS events;
         """
 
-        query = event_collection_cypher.format(quoted=ids)
-        result = await self.query(query)
+        result = await self.query(event_collection_cypher, {"ids": ids})
         events = []
+        if not result or not result[0] or not result[0][0]:
+            return [{"events": events}]
+
         for node in result[0][0]:
             props = json.loads(node["properties"])
 
