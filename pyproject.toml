@@ -255,3 +255,11 @@ include = [
 ]
 # Exclude generated files
 exclude = ["cognee/infrastructure/llm/structured_output_framework/baml/baml_client/"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.21.2",
+    "ruff>=0.13.1",
+]

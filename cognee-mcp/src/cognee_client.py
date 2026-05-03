@@ -7,12 +7,23 @@ This module provides a unified interface for interacting with Cognee, supporting
 """
 
 import sys
+import hashlib
 from typing import Optional, Any, List, Dict
 from uuid import UUID
 from contextlib import redirect_stdout
 import httpx
 from cognee.shared.logging_utils import get_logger
 import json
+
+try:
+    from .server_utils import normalize_delete_mode
+except ImportError:
+    from server_utils import normalize_delete_mode
+
+try:
+    from .retrieval_utils import get_chunk_neighbors_from_graph, get_document_from_graph
+except ImportError:
+    from retrieval_utils import get_chunk_neighbors_from_graph, get_document_from_graph
 
 logger = get_logger()
 
@@ -73,6 +84,26 @@ class CogneeClient:
                 headers["Authorization"] = f"Bearer {self.api_token}"
         return headers
 
+    @staticmethod
+    def _json_or_success(response: httpx.Response) -> Dict[str, Any]:
+        """Return a JSON body when present, otherwise a generic success shape."""
+        if not response.content:
+            return {"status": "success"}
+        try:
+            parsed = response.json()
+        except ValueError:
+            return {"status": "success", "message": response.text}
+        if isinstance(parsed, dict):
+            return parsed
+        return {"status": "success", "result": parsed}
+
+    @staticmethod
+    def _text_upload(data: Any) -> Dict[str, tuple[str, str, str]]:
+        """Create a content-addressed text upload for API-mode ingestion."""
+        content = str(data)
+        digest = hashlib.md5(content.encode("utf-8")).hexdigest()
+        return {"data": (f"text_{digest}.txt", content, "text/plain")}
+
     async def add(
         self, data: Any, dataset_name: str = "main_dataset", node_set: Optional[List[str]] = None
     ) -> Dict[str, Any]:
@@ -96,7 +127,7 @@ class CogneeClient:
         if self.use_api:
             endpoint = f"{self.api_url}/api/v1/add"
 
-            files = {"data": ("data.txt", str(data), "text/plain")}
+            files = self._text_upload(data)
             form_data = {
                 "datasetName": dataset_name,
             }
@@ -240,24 +271,39 @@ class CogneeClient:
         Dict[str, Any]
             Result of the deletion
         """
-        if self.use_api:
-            # API mode: Make HTTP request
-            endpoint = f"{self.api_url}/api/v1/datasets/{str(dataset_id)}/data/{str(data_id)}"
+        normalized_mode = normalize_delete_mode(mode)
 
-            response = await self.client.delete(endpoint, headers=self._get_headers())
+        if self.use_api:
+            # The deprecated delete endpoint still carries the mode contract.
+            # Fall back to the datasets endpoint for older backends that removed it.
+            endpoint = f"{self.api_url}/api/v1/delete"
+            response = await self.client.delete(
+                endpoint,
+                params={
+                    "data_id": str(data_id),
+                    "dataset_id": str(dataset_id),
+                    "mode": normalized_mode,
+                },
+                headers=self._get_headers(),
+            )
+            if response.status_code in {404, 405}:
+                endpoint = f"{self.api_url}/api/v1/datasets/{str(dataset_id)}/data/{str(data_id)}"
+                response = await self.client.delete(endpoint, headers=self._get_headers())
             response.raise_for_status()
-            return response.json()
+            return self._json_or_success(response)
         else:
             # Direct mode: Call cognee directly
             from cognee.modules.users.methods import get_default_user
 
             with redirect_stdout(sys.stderr):
                 user = await get_default_user()
-                await self.cognee.datasets.delete_data(
+                result = await self.cognee.datasets.delete_data(
                     dataset_id=dataset_id,
                     data_id=data_id,
+                    mode=normalized_mode,
                     user=user,
                 )
+                return result or {"status": "success"}
 
     async def prune_data(self) -> Dict[str, Any]:
         """
@@ -358,6 +404,50 @@ class CogneeClient:
                     for d in datasets
                 ]
 
+    async def get_document(
+        self,
+        document_id: str,
+        include_metadata: bool = True,
+        max_chunks: int = 0,
+    ) -> Dict[str, Any]:
+        """Retrieve a full document with its chunks from the graph database."""
+        if self.use_api:
+            raise NotImplementedError("get_document is not available in API mode")
+
+        from cognee.infrastructure.databases.unified import get_unified_engine
+
+        with redirect_stdout(sys.stderr):
+            unified = await get_unified_engine()
+            return await get_document_from_graph(
+                unified.graph,
+                document_id,
+                include_metadata=include_metadata,
+                max_chunks=max_chunks,
+            )
+
+    async def get_chunk_neighbors(
+        self,
+        chunk_id: str,
+        neighbor_count: int = 2,
+        include_target: bool = True,
+        direction: str = "both",
+    ) -> Dict[str, Any]:
+        """Retrieve neighboring chunks around a target chunk from its parent document."""
+        if self.use_api:
+            raise NotImplementedError("get_chunk_neighbors is not available in API mode")
+
+        from cognee.infrastructure.databases.unified import get_unified_engine
+
+        with redirect_stdout(sys.stderr):
+            unified = await get_unified_engine()
+            return await get_chunk_neighbors_from_graph(
+                unified.graph,
+                chunk_id,
+                neighbor_count=neighbor_count,
+                include_target=include_target,
+                direction=direction,
+            )
+
     # -- V2 API methods -----------------------------------------------------
 
     async def remember(
@@ -374,8 +464,10 @@ class CogneeClient:
         """
         if self.use_api:
             endpoint = f"{self.api_url}/api/v1/remember"
-            files = {"data": ("data.txt", str(data), "text/plain")}
+            files = self._text_upload(data)
             form_data = {"datasetName": dataset_name}
+            if session_id:
+                form_data["session_id"] = session_id
             if custom_prompt:
                 form_data["custom_prompt"] = custom_prompt
             response = await self.client.post(
@@ -414,11 +506,13 @@ class CogneeClient:
         """Search memory via recall() with auto-routing and session awareness."""
         if self.use_api:
             endpoint = f"{self.api_url}/api/v1/recall"
-            payload = {"query": query_text, "top_k": top_k}
+            payload = {"query": query_text, "top_k": top_k, "search_type": None}
             if search_type:
                 payload["search_type"] = search_type.upper()
             if datasets:
                 payload["datasets"] = datasets
+            if session_id:
+                payload["session_id"] = session_id
             response = await self.client.post(endpoint, json=payload, headers=self._get_headers())
             response.raise_for_status()
             return response.json()
