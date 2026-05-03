@@ -1154,7 +1154,8 @@ dependencies = [
     { name = "overrides" },
     { name = "posthog" },
     { name = "pydantic" },
-    { name = "pypika" },
+    { name = "pypika", version = "0.48.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "pypika", version = "0.51.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "tenacity" },
@@ -1255,7 +1256,8 @@ baml = [
 ]
 chromadb = [
     { name = "chromadb" },
-    { name = "pypika" },
+    { name = "pypika", version = "0.48.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "pypika", version = "0.51.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
 ]
 codegraph = [
     { name = "fastembed", marker = "python_full_version < '3.14'" },
@@ -1493,7 +1495,8 @@ requires-dist = [
     { name = "pylance", specifier = ">=0.22.0,<=0.36.0" },
     { name = "pympler", specifier = ">=1.1,<2.0.0" },
     { name = "pypdf", specifier = ">=6.6.2,<7.0.0" },
-    { name = "pypika", marker = "extra == 'chromadb'", specifier = "==0.48.9" },
+    { name = "pypika", marker = "python_full_version >= '3.14' and extra == 'chromadb'", specifier = ">=0.50.0" },
+    { name = "pypika", marker = "python_full_version < '3.14' and extra == 'chromadb'", specifier = "==0.48.9" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0,<8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.1,<0.22" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.1.1,<7.0.0" },
@@ -8457,7 +8460,32 @@ wheels = [
 name = "pypika"
 version = "0.48.9"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.13.*' and platform_machine != 's390x'",
+    "python_full_version == '3.13.*' and platform_machine == 's390x'",
+    "python_full_version == '3.12.*' and platform_machine != 's390x'",
+    "python_full_version == '3.12.*' and platform_machine == 's390x'",
+    "python_full_version == '3.11.*' and platform_machine != 's390x'",
+    "python_full_version == '3.11.*' and platform_machine == 's390x'",
+    "python_full_version < '3.11' and platform_machine != 's390x'",
+    "python_full_version < '3.11' and platform_machine == 's390x'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/c7/2c/94ed7b91db81d61d7096ac8f2d325ec562fc75e35f3baea8749c85b28784/PyPika-0.48.9.tar.gz", hash = "sha256:838836a61747e7c8380cd1b7ff638694b7a7335345d0f559b04b2cd832ad5378", size = 67259 }
+
+[[package]]
+name = "pypika"
+version = "0.51.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and platform_machine != 's390x' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and platform_machine == 's390x' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "(python_full_version >= '3.14' and platform_machine != 's390x' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.14' and platform_machine != 's390x' and sys_platform == 'emscripten')",
+    "(python_full_version >= '3.14' and platform_machine == 's390x' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.14' and platform_machine == 's390x' and sys_platform == 'emscripten')",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f8/78/cbaebba88e05e2dcda13ca203131b38d3640219f20ebb49676d26714861b/pypika-0.51.1.tar.gz", hash = "sha256:c30c7c1048fbf056fd3920c5a2b88b0c29dd190a9b2bee971fd17e4abe4d0ebe", size = 80919 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/57/83/c77dfeed04022e8930b08eedca2b6e5efed256ab3321396fde90066efb65/pypika-0.51.1-py2.py3-none-any.whl", hash = "sha256:77985b4d7ce71b9905255bf12468cf598349e98837c037541cfc240e528aec46", size = 60585 },
+]
 
 [[package]]
 name = "pyproject-hooks"
