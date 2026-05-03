@@ -488,6 +488,7 @@ class TestSessionManager:
             answer=None,
             feedback_text=None,
             feedback_score=None,
+            used_graph_element_ids=None,
             memify_metadata=None,
         )
 
