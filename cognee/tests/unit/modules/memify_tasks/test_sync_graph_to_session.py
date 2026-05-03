@@ -1025,6 +1025,8 @@ class TestRecallSessionMode:
         """When session search returns nothing, falls through to graph."""
         recall_mod = _get_recall_module()
 
+        mock_user = MagicMock()
+        mock_user.id = uuid4()
         mock_payload = SearchResultPayload(
             result_object="graph result", search_type=SearchType.GRAPH_COMPLETION
         )
@@ -1046,7 +1048,7 @@ class TestRecallSessionMode:
                 return_value=MagicMock(search_type=MagicMock()),
             ),
         ):
-            results = await recall_mod.recall("test", session_id="s1")
+            results = await recall_mod.recall("test", session_id="s1", user=mock_user)
 
         # Should get graph results since session was empty
         assert len(results) == 1
@@ -1059,6 +1061,8 @@ class TestRecallSessionMode:
         mock_payload = SearchResultPayload(
             result_object="graph result", search_type=SearchType.GRAPH_COMPLETION
         )
+        mock_user = MagicMock()
+        mock_user.id = uuid4()
 
         recall_mod = _get_recall_module()
 
@@ -1073,8 +1077,45 @@ class TestRecallSessionMode:
                 "test",
                 query_type=SearchType.GRAPH_COMPLETION,
                 session_id="s1",
+                user=mock_user,
             )
 
+        assert len(results) == 1
+        assert results[0].source == "graph"
+        assert results[0].text == "graph result"
+
+    @pytest.mark.asyncio
+    async def test_graph_recall_resolves_default_user(self):
+        """Graph recall without an explicit user should use the default user."""
+        mock_user = MagicMock()
+        mock_user.id = uuid4()
+        mock_payload = SearchResultPayload(
+            result_object="graph result", search_type=SearchType.GRAPH_COMPLETION
+        )
+
+        recall_mod = _get_recall_module()
+
+        with (
+            patch.object(recall_mod, "get_default_user", AsyncMock(return_value=mock_user)),
+            patch.object(
+                recall_mod,
+                "set_session_user_context_variable",
+                AsyncMock(),
+            ) as set_user_context,
+            patch.object(
+                _mod_search_methods,
+                "authorized_search",
+                AsyncMock(return_value=[mock_payload]),
+            ) as authorized_search,
+        ):
+            results = await recall_mod.recall(
+                "test",
+                query_type=SearchType.GRAPH_COMPLETION,
+            )
+
+        authorized_search.assert_awaited_once()
+        assert authorized_search.await_args.kwargs["user"] is mock_user
+        set_user_context.assert_awaited_once_with(mock_user)
         assert len(results) == 1
         assert results[0].source == "graph"
         assert results[0].text == "graph result"
