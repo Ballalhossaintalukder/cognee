@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 from typing_extensions import TypedDict, Unpack
 
 from cognee.infrastructure.databases.cache import SessionAgentTraceEntry, SessionQAEntry
+from cognee.infrastructure.databases.exceptions import DatabaseNotCreatedError
+from cognee.context_global_variables import set_session_user_context_variable
+from cognee.exceptions import CogneeValidationError
 from cognee.memory.entries import normalize_scope
 from cognee.modules.data.exceptions import DatasetNotFoundError
 from cognee.modules.data.methods import get_authorized_existing_datasets
@@ -29,6 +32,8 @@ from cognee.modules.recall.types.RecallResponse import (
 from cognee.modules.recall.types.SearchResultItem import SearchResultItem
 from cognee.modules.search.models.SearchResultPayload import SearchResultPayload
 from cognee.modules.search.types import SearchResult, SearchType
+from cognee.modules.users.exceptions.exceptions import UserNotFoundError
+from cognee.modules.users.methods import get_default_user
 from cognee.shared.logging_utils import get_logger
 
 logger = get_logger("recall")
@@ -62,11 +67,27 @@ def _tokenize(text: str) -> set[str]:
 
 async def _resolve_user_id(user: str | None) -> str | None:
     """Return the user id as a string, resolving default if needed."""
-    from cognee.modules.users.methods import get_default_user
-
     if user is None:
         user = await get_default_user()
     return str(user.id) if hasattr(user, "id") else None
+
+
+async def _resolve_graph_user(user):
+    if user is None:
+        try:
+            user = await get_default_user()
+        except (DatabaseNotCreatedError, UserNotFoundError) as error:
+            raise CogneeValidationError(
+                message=(
+                    "Recall prerequisites not met: no database/default user found. "
+                    "Initialize Cognee before recalling by:\n"
+                    "- running `await cognee.add(...)` followed by `await cognee.cognify()`."
+                ),
+                name="RecallPreconditionError",
+            ) from error
+
+    await set_session_user_context_variable(user)
+    return user
 
 
 async def _resolve_session_cache_user_id(session_id: str, caller_user_id: str | None) -> str | None:
@@ -352,7 +373,8 @@ async def recall(
     from cognee.shared.utils import send_telemetry
 
     session_id = kwargs.get("session_id")
-    user = kwargs.get("user")
+    user = kwargs.pop("user", None)
+    telemetry_user = getattr(user, "id", user) or "sdk"
 
     # Resolve scope → concrete source list. "auto" (the default) picks
     # sources based on what the caller supplied:
@@ -384,7 +406,7 @@ async def recall(
 
     send_telemetry(
         "cognee.recall",
-        kwargs.get("user", "sdk"),
+        telemetry_user,
         additional_properties={
             "query_length": len(query_text),
             "scope": span_scope,
@@ -419,6 +441,9 @@ async def recall(
             span.set_attribute(COGNEE_RECALL_SOURCE, "cloud")
             span.set_attribute(COGNEE_RESULT_COUNT, len(results) if results else 0)
             return results
+
+        if "graph" in sources:
+            user = await _resolve_graph_user(user)
 
         merged: list[RecallResponse] = []
 
