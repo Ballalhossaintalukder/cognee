@@ -20,6 +20,7 @@ constraints = [
     { name = "nltk", specifier = ">=3.9.3" },
     { name = "protobuf", specifier = ">=5.29.6,!=6.30.*,!=6.31.*,!=6.32.*,!=6.33.1,!=6.33.2,!=6.33.3,!=6.33.4" },
     { name = "pyasn1", specifier = ">=0.6.2" },
+    { name = "scipy", marker = "python_full_version >= '3.14'", specifier = ">=1.16.1" },
     { name = "spacy", marker = "python_full_version >= '3.14'", specifier = "<3.8.14" },
     { name = "wheel", specifier = ">=0.46.2" },
 ]
@@ -2336,8 +2337,8 @@ dependencies = [
     { name = "rapidocr" },
     { name = "requests" },
     { name = "rtree" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or python_full_version >= '3.14'" },
-    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and python_full_version < '3.14'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "tqdm" },
     { name = "typer" },
 ]
@@ -9552,7 +9553,8 @@ dependencies = [
     { name = "joblib", marker = "python_full_version < '3.11' or python_full_version >= '3.14'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or python_full_version >= '3.14'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
     { name = "threadpoolctl", marker = "python_full_version < '3.11' or python_full_version >= '3.14'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/98/c2/a7855e41c9d285dfe86dc50b250978105dce513d6e459ea66a6aeb0e1e0c/scikit_learn-1.7.2.tar.gz", hash = "sha256:20e9e49ecd130598f1ca38a1d85090e1a600147b9c02fa6f15d69cb53d968fda", size = 7193136 }
@@ -9653,16 +9655,11 @@ name = "scipy"
 version = "1.15.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.14' and platform_machine != 's390x' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version >= '3.14' and platform_machine == 's390x' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "(python_full_version >= '3.14' and platform_machine != 's390x' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.14' and platform_machine != 's390x' and sys_platform == 'emscripten')",
-    "(python_full_version >= '3.14' and platform_machine == 's390x' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.14' and platform_machine == 's390x' and sys_platform == 'emscripten')",
     "python_full_version < '3.11' and platform_machine != 's390x'",
     "python_full_version < '3.11' and platform_machine == 's390x'",
 ]
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0f/37/6964b830433e654ec7485e45a00fc9a27cf868d622838f6b6d9c5ec0d532/scipy-1.15.3.tar.gz", hash = "sha256:eae3cf522bc7df64b42cad3925c876e1b0b6c35c1337c93e12c0f366f55b0eaf", size = 59419214 }
 wheels = [
@@ -9718,6 +9715,10 @@ name = "scipy"
 version = "1.17.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
+    "python_full_version >= '3.14' and platform_machine != 's390x' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and platform_machine == 's390x' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "(python_full_version >= '3.14' and platform_machine != 's390x' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.14' and platform_machine != 's390x' and sys_platform == 'emscripten')",
+    "(python_full_version >= '3.14' and platform_machine == 's390x' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.14' and platform_machine == 's390x' and sys_platform == 'emscripten')",
     "python_full_version == '3.13.*' and platform_machine != 's390x'",
     "python_full_version == '3.13.*' and platform_machine == 's390x'",
     "python_full_version == '3.12.*' and platform_machine != 's390x'",
@@ -9727,7 +9728,7 @@ resolution-markers = [
 ]
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
-    { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' and python_full_version < '3.14'" },
+    { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7a/97/5a3609c4f8d58b039179648e62dd220f89864f56f7357f5d4f45c29eb2cc/scipy-1.17.1.tar.gz", hash = "sha256:95d8e012d8cb8816c226aef832200b1d45109ed4464303e997c5b13122b297c0", size = 30573822 }
 wheels = [
@@ -11406,8 +11407,8 @@ dependencies = [
     { name = "pypdfium2" },
     { name = "python-multipart" },
     { name = "rapidfuzz" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or python_full_version >= '3.14'" },
-    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and python_full_version < '3.14'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "timm" },
     { name = "torch" },
     { name = "transformers" },
