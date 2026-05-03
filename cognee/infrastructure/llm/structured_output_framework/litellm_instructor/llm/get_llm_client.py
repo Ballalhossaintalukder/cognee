@@ -3,8 +3,6 @@
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
-from hmac import digest
-from secrets import token_bytes
 from typing import Any, Hashable, TypeGuard
 
 from cognee.infrastructure.llm import get_llm_config
@@ -20,7 +18,28 @@ from cognee.infrastructure.llm.structured_output_framework.litellm_instructor.ll
 )
 
 _LLM_CLIENT_CACHE_MAXSIZE = 32
-_SECRET_FINGERPRINT_KEY = token_bytes(32)
+_FROZEN_DICT = "__cognee_dict__"
+_FROZEN_LIST = "__cognee_list__"
+_FROZEN_TUPLE = "__cognee_tuple__"
+_FROZEN_SET = "__cognee_set__"
+
+
+class _SecretCacheKey:
+    """Cache key segment that compares secrets without exposing them in repr."""
+
+    __slots__ = ("__value",)
+
+    def __init__(self, value: str) -> None:
+        self.__value = value
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, _SecretCacheKey) and self.__value == other.__value
+
+    def __hash__(self) -> int:
+        return hash(self.__value)
+
+    def __repr__(self) -> str:
+        return "<redacted>" if self.__value else "<empty>"
 
 
 @dataclass(frozen=True)
@@ -29,14 +48,14 @@ class _LLMClientCacheKey:
 
     provider: str
     model: str
-    api_key_fingerprint: str
+    api_key_cache_key: _SecretCacheKey
     endpoint: str
     api_version: str | None
     instructor_mode: str
     streaming: bool
     max_completion_tokens: int
     transcription_model: str
-    fallback_api_key_fingerprint: str
+    fallback_api_key_cache_key: _SecretCacheKey
     fallback_endpoint: str
     fallback_model: str
     llm_args: Hashable
@@ -79,17 +98,23 @@ _API_KEY_REQUIRED_PROVIDERS = {
     LLMProvider.CUSTOM,
     LLMProvider.GEMINI,
     LLMProvider.MISTRAL,
+    LLMProvider.ANTHROPIC,
 }
 
 
 def _freeze_for_cache(value: Any) -> Hashable:
     """Convert nested JSON-like config values into a deterministic hashable form."""
     if isinstance(value, dict):
-        return tuple(sorted((str(key), _freeze_for_cache(item)) for key, item in value.items()))
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze_for_cache(item) for item in value)
+        return (
+            _FROZEN_DICT,
+            tuple(sorted((str(key), _freeze_for_cache(item)) for key, item in value.items())),
+        )
+    if isinstance(value, list):
+        return (_FROZEN_LIST, tuple(_freeze_for_cache(item) for item in value))
+    if isinstance(value, tuple):
+        return (_FROZEN_TUPLE, tuple(_freeze_for_cache(item) for item in value))
     if isinstance(value, set):
-        return tuple(sorted((_freeze_for_cache(item) for item in value), key=repr))
+        return (_FROZEN_SET, tuple(sorted((_freeze_for_cache(item) for item in value), key=repr)))
 
     try:
         hash(value)
@@ -98,27 +123,38 @@ def _freeze_for_cache(value: Any) -> Hashable:
     return value
 
 
-def _is_frozen_mapping(value: tuple[Any, ...]) -> TypeGuard[tuple[tuple[str, Hashable], ...]]:
-    """Return whether a frozen tuple represents sorted key-value mapping items."""
+def _is_frozen_mapping_payload(value: Any) -> TypeGuard[tuple[tuple[str, Hashable], ...]]:
+    """Return whether a frozen payload represents sorted key-value mapping items."""
+    if not isinstance(value, tuple):
+        return False
     return all(
         isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], str) for item in value
     )
 
 
-def _unfreeze_from_cache(value: Hashable) -> Any:
+def _is_frozen_sequence_payload(value: Any) -> TypeGuard[tuple[Hashable, ...]]:
+    """Return whether a frozen payload represents sequence items."""
+    return isinstance(value, tuple)
+
+
+def _unfreeze_from_cache(value: Any) -> Any:
     """Rebuild JSON-like values from their cache-key representation."""
-    if isinstance(value, tuple):
-        if _is_frozen_mapping(value):
-            return {key: _unfreeze_from_cache(item) for key, item in value}
-        return [_unfreeze_from_cache(item) for item in value]
+    if isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str):
+        kind, payload = value
+        if kind == _FROZEN_DICT and _is_frozen_mapping_payload(payload):
+            return {key: _unfreeze_from_cache(item) for key, item in payload}
+        if kind == _FROZEN_LIST and _is_frozen_sequence_payload(payload):
+            return [_unfreeze_from_cache(item) for item in payload]
+        if kind == _FROZEN_TUPLE and _is_frozen_sequence_payload(payload):
+            return tuple(_unfreeze_from_cache(item) for item in payload)
+        if kind == _FROZEN_SET and _is_frozen_sequence_payload(payload):
+            return {_unfreeze_from_cache(item) for item in payload}
     return value
 
 
-def _secret_fingerprint(secret: str | None) -> str:
-    """Return a per-process HMAC fingerprint without putting raw secrets in cache keys."""
-    if not secret:
-        return ""
-    return digest(_SECRET_FINGERPRINT_KEY, secret.encode(), "sha256").hex()
+def _secret_cache_key(secret: str | None) -> _SecretCacheKey:
+    """Return a cache key segment that keeps secrets out of rendered cache keys."""
+    return _SecretCacheKey(secret or "")
 
 
 def _build_llm_client_cache_key(llm_config, max_completion_tokens: int) -> _LLMClientCacheKey:
@@ -126,14 +162,14 @@ def _build_llm_client_cache_key(llm_config, max_completion_tokens: int) -> _LLMC
     return _LLMClientCacheKey(
         provider=llm_config.llm_provider,
         model=llm_config.llm_model,
-        api_key_fingerprint=_secret_fingerprint(llm_config.llm_api_key),
+        api_key_cache_key=_secret_cache_key(llm_config.llm_api_key),
         endpoint=llm_config.llm_endpoint,
         api_version=llm_config.llm_api_version,
         instructor_mode=llm_config.llm_instructor_mode.lower(),
         streaming=llm_config.llm_streaming,
         max_completion_tokens=max_completion_tokens,
         transcription_model=llm_config.transcription_model,
-        fallback_api_key_fingerprint=_secret_fingerprint(llm_config.fallback_api_key),
+        fallback_api_key_cache_key=_secret_cache_key(llm_config.fallback_api_key),
         fallback_endpoint=llm_config.fallback_endpoint,
         fallback_model=llm_config.fallback_model,
         llm_args=_freeze_for_cache(llm_config.llm_args or {}),
@@ -149,9 +185,13 @@ def _raise_for_missing_api_key(
     provider: LLMProvider,
     api_key: str | None,
     raise_api_key_error: bool,
+    use_managed_identity: bool = False,
 ) -> None:
     """Preserve provider-specific API key validation before cache lookup."""
-    if provider in _API_KEY_REQUIRED_PROVIDERS and api_key is None and raise_api_key_error:
+    requires_api_key = provider in _API_KEY_REQUIRED_PROVIDERS or (
+        provider == LLMProvider.AZURE and not use_managed_identity
+    )
+    if requires_api_key and (api_key is None or api_key.strip() == "") and raise_api_key_error:
         raise LLMAPIKeyNotSetError()
 
 
@@ -332,7 +372,12 @@ def get_llm_client(raise_api_key_error: bool = True) -> LLMInterface:
     llm_config = get_llm_config()
 
     provider = LLMProvider(llm_config.llm_provider)
-    _raise_for_missing_api_key(provider, llm_config.llm_api_key, raise_api_key_error)
+    _raise_for_missing_api_key(
+        provider,
+        llm_config.llm_api_key,
+        raise_api_key_error,
+        llm_config.llm_azure_use_managed_identity,
+    )
 
     # Check if max_token value is defined in liteLLM for given model
     # if not use value from cognee configuration

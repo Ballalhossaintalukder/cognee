@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 import pytest
 
 from cognee.infrastructure.llm.config import LLMConfig
@@ -64,22 +66,53 @@ def test_llm_client_cache_key_does_not_expose_raw_secrets():
     cache_key = _build_llm_client_cache_key(_llm_config(), max_completion_tokens=1024)
 
     rendered_key = repr(cache_key)
+    rendered_dataclass = str(asdict(cache_key))
 
     assert "primary-secret" not in rendered_key
     assert "fallback-secret" not in rendered_key
+    assert "primary-secret" not in rendered_dataclass
+    assert "fallback-secret" not in rendered_dataclass
+    assert not hasattr(cache_key.api_key_cache_key, "__dict__")
+    assert not hasattr(cache_key.fallback_api_key_cache_key, "__dict__")
 
 
 def test_llm_args_cache_representation_is_stable_and_rebuildable():
-    first = _freeze_for_cache({"z": [3, {"nested": True}], "a": {"b": 1}})
-    second = _freeze_for_cache({"a": {"b": 1}, "z": [3, {"nested": True}]})
+    llm_args = {
+        "z": [3, {"nested": True}],
+        "a": {"b": (1, 2), "c": {"x", "y"}},
+    }
+    first = _freeze_for_cache(llm_args)
+    second = _freeze_for_cache(
+        {
+            "a": {"c": {"y", "x"}, "b": (1, 2)},
+            "z": [3, {"nested": True}],
+        }
+    )
 
     assert first == second
-    assert _unfreeze_from_cache(first) == {"a": {"b": 1}, "z": [3, {"nested": True}]}
+    assert _unfreeze_from_cache(first) == llm_args
 
 
 def test_api_key_validation_still_happens_before_cache_lookup():
     with pytest.raises(LLMAPIKeyNotSetError):
         _raise_for_missing_api_key(LLMProvider.OPENAI, None, raise_api_key_error=True)
 
+    with pytest.raises(LLMAPIKeyNotSetError):
+        _raise_for_missing_api_key(LLMProvider.ANTHROPIC, "", raise_api_key_error=True)
+
+    with pytest.raises(LLMAPIKeyNotSetError):
+        _raise_for_missing_api_key(
+            LLMProvider.AZURE,
+            "   ",
+            raise_api_key_error=True,
+            use_managed_identity=False,
+        )
+
     _raise_for_missing_api_key(LLMProvider.OPENAI, None, raise_api_key_error=False)
     _raise_for_missing_api_key(LLMProvider.BEDROCK, None, raise_api_key_error=True)
+    _raise_for_missing_api_key(
+        LLMProvider.AZURE,
+        None,
+        raise_api_key_error=True,
+        use_managed_identity=True,
+    )
