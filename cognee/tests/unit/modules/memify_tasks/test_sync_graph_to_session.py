@@ -1025,6 +1025,8 @@ class TestRecallSessionMode:
         """When session search returns nothing, falls through to graph."""
         recall_mod = _get_recall_module()
 
+        mock_user = MagicMock()
+        mock_user.id = uuid4()
         mock_payload = SearchResultPayload(
             result_object="graph result", search_type=SearchType.GRAPH_COMPLETION
         )
@@ -1046,7 +1048,7 @@ class TestRecallSessionMode:
                 return_value=MagicMock(search_type=MagicMock()),
             ),
         ):
-            results = await recall_mod.recall("test", session_id="s1")
+            results = await recall_mod.recall("test", session_id="s1", user=mock_user)
 
         # Should get graph results since session was empty
         assert len(results) == 1
@@ -1059,6 +1061,8 @@ class TestRecallSessionMode:
         mock_payload = SearchResultPayload(
             result_object="graph result", search_type=SearchType.GRAPH_COMPLETION
         )
+        mock_user = MagicMock()
+        mock_user.id = uuid4()
 
         recall_mod = _get_recall_module()
 
@@ -1073,6 +1077,7 @@ class TestRecallSessionMode:
                 "test",
                 query_type=SearchType.GRAPH_COMPLETION,
                 session_id="s1",
+                user=mock_user,
             )
 
         assert len(results) == 1

@@ -72,24 +72,6 @@ async def _resolve_user_id(user: str | None) -> str | None:
     return str(user.id) if hasattr(user, "id") else None
 
 
-async def _resolve_graph_user(user):
-    if user is None:
-        try:
-            user = await get_default_user()
-        except (DatabaseNotCreatedError, UserNotFoundError) as error:
-            raise CogneeValidationError(
-                message=(
-                    "Recall prerequisites not met: no database/default user found. "
-                    "Initialize Cognee before recalling by:\n"
-                    "- running `await cognee.add(...)` followed by `await cognee.cognify()`."
-                ),
-                name="RecallPreconditionError",
-            ) from error
-
-    await set_session_user_context_variable(user)
-    return user
-
-
 async def _resolve_session_cache_user_id(session_id: str, caller_user_id: str | None) -> str | None:
     """Resolve the user_id to use when querying the session cache.
 
@@ -373,7 +355,7 @@ async def recall(
     from cognee.shared.utils import send_telemetry
 
     session_id = kwargs.get("session_id")
-    user = kwargs.pop("user", None)
+    user = kwargs.get("user")
     telemetry_user = getattr(user, "id", user) or "sdk"
 
     # Resolve scope → concrete source list. "auto" (the default) picks
@@ -442,8 +424,7 @@ async def recall(
             span.set_attribute(COGNEE_RESULT_COUNT, len(results) if results else 0)
             return results
 
-        if "graph" in sources:
-            user = await _resolve_graph_user(user)
+        user = kwargs.pop("user", None)
 
         merged: list[RecallResponse] = []
 
@@ -477,10 +458,27 @@ async def recall(
             return list(await _fetch_graph_context(session_id=session_id, user=user))
 
         async def _run_graph() -> list[RecallResponse]:
+            nonlocal user
+
             from cognee.modules.recall.methods.normalize_search_payload import (
                 normalize_search_payload,
             )
             from cognee.modules.search.methods.search import authorized_search
+
+            if user is None:
+                try:
+                    user = await get_default_user()
+                except (DatabaseNotCreatedError, UserNotFoundError) as error:
+                    raise CogneeValidationError(
+                        message=(
+                            "Recall prerequisites not met: no database/default user found. "
+                            "Initialize Cognee before recalling by:\n"
+                            "- running `await cognee.add(...)` followed by `await cognee.cognify()`."
+                        ),
+                        name="RecallPreconditionError",
+                    ) from error
+
+            await set_session_user_context_variable(user)
 
             local_query_type = query_type
             if local_query_type is not None:
