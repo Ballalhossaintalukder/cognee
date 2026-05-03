@@ -3,7 +3,7 @@
 When ``--api-url`` is supplied (e.g. ``--api-url http://localhost:8000``),
 every CLI command is forwarded as an HTTP request to the server instead of
 being executed in-process.  This avoids file-based database locking issues
-(SQLite, KuzuDB, LanceDB) that arise when multiple CLI processes try to
+(SQLite, Ladybug, LanceDB) that arise when multiple CLI processes try to
 access the same files concurrently.
 
 The single API server process owns all database connections and serialises
@@ -201,8 +201,12 @@ class CogneeApiClient:
         self._raise_for_status(r)
         return r.json()
 
-    def datasets_status(self, dataset_ids: list[str]) -> dict:
+    def datasets_status(
+        self, dataset_ids: list[str], pipelines: Optional[list[str]] = None
+    ) -> dict:
         params = [("dataset", did) for did in dataset_ids]
+        if pipelines:
+            params.extend([("pipeline", pipeline) for pipeline in pipelines])
         r = self._get_client().get(self._url("/api/v1/datasets/status"), params=params)
         self._raise_for_status(r)
         return r.json()

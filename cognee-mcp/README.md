@@ -40,12 +40,11 @@ Build memory for Agents and query from any client that speaks MCP – in your t
 - Multiple transports – choose Streamable HTTP --transport http (recommended for web deployments), SSE --transport sse (real‑time streaming), or stdio (classic pipe, default)
 - **Cloud Mode** – connect to [Cognee Cloud](https://www.cognee.ai) via `--serve-url` or `COGNEE_SERVICE_URL` env var (see [Connection Modes](#-connection-modes))
 - **API Mode** – connect to an already running Cognee FastAPI server (see [Connection Modes](#-connection-modes))
-- **V2 Memory API** – session-aware `remember`/`recall`/`forget`/`improve` tools alongside classic V1 tools
+- **Minimal Memory API** – exposes only `remember`, `recall`, and `forget` for agent memory workflows
 - Integrated logging – all actions written to a rotating file (see get_log_file_location()) and mirrored to console in dev
-- Local file ingestion – feed .md, source files, Cursor rule‑sets, etc. straight from disk
-- Background pipelines – long‑running cognify & codify jobs spawn off‑thread; check progress with status tools
-- Developer rules bootstrap – one call indexes .cursorrules, .cursor/rules, AGENT.md, and friends into the developer_rules nodeset
-- Prune & reset – wipe memory clean with a single prune call when you want to start fresh
+- Session-aware memory – store fast session cache entries or permanent graph memory through one `remember` tool
+- Focused recall – query memory through one `recall` tool with optional session and search controls
+- Simple deletion – remove a dataset or all owned memory through one `forget` tool
 
 Please refer to our documentation [here](https://docs.cognee.ai/how-to-guides/deployment/mcp) for further information.
 
@@ -373,7 +372,7 @@ You can configure both transports simultaneously for testing:
 The MCP server supports three connection modes:
 
 ### **Direct Mode** (Default)
-The MCP server directly imports and uses the cognee library with local databases (SQLite, LanceDB, Kuzu). This is the default mode with full feature support.
+The MCP server directly imports and uses the cognee library with local databases (SQLite, LanceDB, Ladybug). This is the default mode with full feature support.
 
 ### **Cloud Mode**
 Connect to [Cognee Cloud](https://www.cognee.ai) or a remote Cognee instance. The server calls `cognee.serve()` at startup, and all SDK operations transparently route to the cloud. No local databases needed.
@@ -459,15 +458,11 @@ docker run \
 - `API_URL`: Base URL of the running Cognee FastAPI server
 - `API_TOKEN`: Authentication token (optional, required if API has authentication enabled)
 
-**API Mode limitations:**
-Some features are only available in direct mode:
-- `codify` (code graph pipeline)
-- `cognify_status` / `codify_status` (pipeline status tracking)
-- `prune` (data reset)
-- `get_developer_rules` (developer rules retrieval)
-- `list_data` with specific dataset_id (detailed data listing)
-
-Basic operations like `cognify`, `search`, `delete`, and `list_data` (all datasets) work in both modes.
+**API Mode behavior:**
+The MCP server intentionally exposes only the memory API: `remember`, `recall`, and `forget`.
+In API mode these tools call the Cognee API server endpoints directly. Operational helpers such as
+`cognify`, `search`, `list_data`, `delete`, `prune`, `improve`, and document retrieval helpers are
+kept internal and are not exposed as MCP tools.
 
 ## 💻 Basic Usage
 
@@ -476,38 +471,25 @@ The MCP server exposes its functionality through tools. Call them from any MCP c
 
 ### Available Tools
 
-**V2 Memory API** (recommended):
+The MCP server exposes three tools:
 
-- **remember**: Store data in memory. With `session_id`: fast session cache. Without: full add + cognify pipeline (permanent)
-- **recall**: Search memory with auto-routing. Searches session cache first when `session_id` is provided, falls through to permanent graph
-- **forget_memory**: Delete data — target a specific dataset or everything
-- **improve**: Enrich the knowledge graph and bridge session data to permanent graph via feedback weights
+- **remember**: Store data in memory. With `session_id`: fast session cache. Without `session_id`: permanent graph memory
+- **recall**: Search memory with auto-routing. Searches session cache first when `session_id` is provided, then falls through to the permanent graph
+- **forget**: Delete memory by dataset name, or delete all owned memory with `everything=True`
 
-**V1 Tools** (still available):
-
-- **cognify**: Turns your data into a structured knowledge graph and stores it in memory
-- **search**: Query memory — supports GRAPH_COMPLETION, RAG_COMPLETION, CODE, CHUNKS, SUMMARIES, CYPHER, and FEELING_LUCKY
-- **save_interaction**: Logs user-agent interactions and query-answer pairs
-- **delete**: Delete specific data from a dataset (supports soft/hard deletion modes)
-- **list_data**: List all datasets and their data items with IDs for deletion operations
-- **prune**: Reset cognee for a fresh start (removes all data)
-- **cognify_status / codify_status**: Track pipeline progress
-- **cognee_add_developer_rules**: Ingest core developer rule files into memory
-- **get_developer_rules**: Retrieve all developer rules that were generated based on previous interactions
-
-**Data Management Examples:**
+**Examples:**
 ```bash
-# List all available datasets and data items
-list_data()
+# Store permanent memory
+remember(data="Cognee MCP now exposes a focused memory API.", dataset_name="main_dataset")
 
-# List data items in a specific dataset
-list_data(dataset_id="your-dataset-id-here")
+# Store session memory
+remember(data="Temporary working note", session_id="agent-session-1")
 
-# Delete specific data (soft deletion - safer, preserves shared entities)
-delete(data_id="data-uuid", dataset_id="dataset-uuid", mode="soft")
+# Recall from memory
+recall(query="What changed in the MCP server?", session_id="agent-session-1")
 
-# Delete specific data (hard deletion - removes orphaned entities)
-delete(data_id="data-uuid", dataset_id="dataset-uuid", mode="hard")
+# Delete one dataset
+forget(dataset="main_dataset")
 ```
 
 

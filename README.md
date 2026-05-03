@@ -104,7 +104,7 @@ Let’s try Cognee in just a few lines of code.
 
 ### Prerequisites
 
-- Python 3.10 to 3.13
+- Python 3.10 to 3.14
 
 ### Step 1: Install Cognee
 

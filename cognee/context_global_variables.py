@@ -92,8 +92,8 @@ def backend_access_control_enabled():
     return False
 
 
-VECTOR_DBS_WITH_MULTI_USER_SUPPORT = ["lancedb", "falkor"]
-GRAPH_DBS_WITH_MULTI_USER_SUPPORT = ["kuzu", "falkor"]
+VECTOR_DBS_WITH_MULTI_USER_SUPPORT = ["lancedb", "pgvector", "falkor"]
+GRAPH_DBS_WITH_MULTI_USER_SUPPORT = ["ladybug", "kuzu", "falkor"]
 
 
 def is_multi_user_support_possible():
