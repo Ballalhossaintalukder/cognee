@@ -82,7 +82,12 @@ scraping = [
 
 fastembed = [
     "fastembed<=0.8.0",
-    "onnxruntime<=1.23.2",
+    # onnxruntime 1.23.2 only ships wheels through cp313; cp314 wheels start
+    # at onnxruntime 1.24.1. Split by python_version so existing 3.10–3.13
+    # users keep the pinned version and 3.14 picks up the first cp314-capable
+    # release.
+    "onnxruntime<=1.23.2 ; python_version < '3.14'",
+    "onnxruntime>=1.24.1 ; python_version >= '3.14'",
 ]
 
 neo4j = ["neo4j>=5.28.0,<6"]
@@ -219,6 +224,10 @@ constraint-dependencies = [
     "pyasn1>=0.6.2",
     "wheel>=0.46.2",
     "nltk>=3.9.3",
+    # spacy 3.8.14 dropped cp314 wheels (3.8.10-3.8.13 had them); pin so the
+    # Python 3.14 release path keeps a wheel available. Pulled transitively
+    # via unstructured.
+    "spacy<3.8.14 ; python_version >= '3.14'",
 ]
 
 [tool.ruff]
